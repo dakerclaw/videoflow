@@ -3,9 +3,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# 数据文件
-data/
-*.json
+# 数据文件（只排除数据目录下的 JSON 文件）
+data/*.json
 
 # 上传文件
 uploads/

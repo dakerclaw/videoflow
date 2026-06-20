@@ -15,7 +15,7 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-// 初始化数据库
+// 默认数据
 const defaultData = {
   users: [],
   videos: [],
@@ -34,21 +34,26 @@ if (!fs.existsSync(dbPath)) {
   fs.writeFileSync(dbPath, JSON.stringify(defaultData, null, 2));
 }
 
+// 初始化 lowdb
 const adapter = new JSONFileSync(dbPath);
-const db = new LowSync(adapter, defaultData);
+const db = new LowSync(adapter);
+
+// 读取数据
 db.read();
 
 // 确保数据存在
 if (!db.data) {
   db.data = defaultData;
   db.write();
-} else {
-  // 确保必要的字段存在
-  if (!db.data.users) db.data.users = defaultData.users;
-  if (!db.data.videos) db.data.videos = defaultData.videos;
-  if (!db.data.siteConfig) db.data.siteConfig = defaultData.siteConfig;
-  db.write();
 }
+
+// 确保必要的字段存在
+if (!db.data.users) db.data.users = [];
+if (!db.data.videos) db.data.videos = [];
+if (!db.data.siteConfig || db.data.siteConfig.length === 0) {
+  db.data.siteConfig = [defaultData.siteConfig[0]];
+}
+db.write();
 
 // 如果管理员账号不存在，创建它
 const adminExists = db.data.users.find(u => u.username === 'dakerclaw');
