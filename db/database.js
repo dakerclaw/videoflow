@@ -37,7 +37,7 @@ class Database {
 
   saveData() {
     try {
-      fs.writeFileSync(this.dbPath, JSON.stringify(this.data, null, 2));
+      fs.writeFileSync(this.dbPath, JSON.stringify(this.data, null, 2), 'utf8');
     } catch (e) {
       console.error('保存数据库失败:', e);
     }
