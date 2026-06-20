@@ -128,8 +128,23 @@ app.post('/api/videos/upload', authMiddleware, upload.array('videos', 10), (req,
     const uploadedVideos = [];
 
     files.forEach((file, index) => {
-      // 支持每个视频有不同的标题，或统一标题
-      const videoTitle = Array.isArray(title) ? title[index] : `${title || '未命名视频'}${files.length > 1 ? ` (${index + 1})` : ''}`;
+      // 确定视频标题
+      let videoTitle;
+      if (Array.isArray(title)) {
+        // 每个视频有不同的标题
+        videoTitle = title[index] && title[index].trim()
+          ? title[index].trim()
+          : path.parse(file.originalname).name;
+      } else {
+        // 所有视频使用同一个标题（或留空）
+        if (title && title.trim()) {
+          videoTitle = files.length > 1 ? `${title.trim()} (${index + 1})` : title.trim();
+        } else {
+          // 未提供标题，使用文件名（不含扩展名）
+          videoTitle = path.parse(file.originalname).name;
+        }
+      }
+
       const videoTags = Array.isArray(tags) ? tags[index] : (tags || '');
       const videoDesc = Array.isArray(description) ? description[index] : (description || '');
       const videoPassword = Array.isArray(password) ? password[index] : (password || '');
