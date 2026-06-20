@@ -3,8 +3,6 @@ const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
-const JsonDB = require('node-json-db').JsonDB;
-const { Config } = require('node-json-db/dist/lib/node-json-db/core');
 
 const dbPath = path.join(__dirname, '../data/db.json');
 const JWT_SECRET = 'videoflow_secret_key_2024';
