@@ -4,9 +4,11 @@ FROM node:18-alpine
 # 设置工作目录
 WORKDIR /app
 
-# 设置环境变量
+# 设置环境变量（支持中文）
 ENV NODE_ENV=production
 ENV PORT=3291
+ENV LANG=zh_CN.UTF-8
+ENV LC_ALL=zh_CN.UTF-8
 
 # 先复制 package.json（利用 Docker 缓存层）
 COPY package.json ./
