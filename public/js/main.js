@@ -110,7 +110,7 @@ function renderVideos(videos) {
   emptyState.style.display = 'none';
 
   container.innerHTML = videos.map(video => `
-    <div class="video-card" onclick="handleVideoClick('${video.id}')">
+    <div class="video-card" onclick="handleVideoClick('${video.id}')" data-video-id="${video.id}">
       ${isSelectMode ? `
         <div style="padding: 0.5rem;">
           <input type="checkbox" ${selectedVideos.has(video.id) ? 'checked' : ''} 
@@ -197,7 +197,21 @@ function toggleVideoSelect(videoId) {
   } else {
     selectedVideos.add(videoId);
   }
+  
+  // 更新复选框的视觉状态
+  updateCheckboxVisualState(videoId);
   updateSelectActions();
+}
+
+// 更新单个视频复选框的视觉状态
+function updateCheckboxVisualState(videoId) {
+  const videoCard = document.querySelector(`.video-card[data-video-id="${videoId}"]`);
+  if (videoCard) {
+    const checkbox = videoCard.querySelector('input[type="checkbox"]');
+    if (checkbox) {
+      checkbox.checked = selectedVideos.has(videoId);
+    }
+  }
 }
 
 function toggleSelectAll() {
