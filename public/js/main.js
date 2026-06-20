@@ -253,7 +253,6 @@ async function deleteSelected() {
     showToast('删除失败，请重试', 'error');
   }
 }
-}
 
 // ========== 搜索和筛选 ==========
 function searchVideos() {
