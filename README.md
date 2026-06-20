@@ -4,7 +4,7 @@
 
 🎬 **一个简洁优雅的视频分享平台**
 
-[在线演示](#) • [文档](#) • [反馈问题](https://github.com/dakerclaw/videoflow/issues)
+ [文档](#) • [反馈问题](https://github.com/dakerclaw/videoflow/issues)
 
 ![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg) ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Version](https://img.shields.io/badge/version-1.1.0-orange.svg)
 
