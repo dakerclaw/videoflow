@@ -49,16 +49,16 @@ const upload = multer({
         cb(new Error('只支持视频文件格式'));
       }
     }
-    // 缩略图文件
-    else if (file.fieldname === 'thumbnails') {
-      if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+    // 缩略图文件（支持 thumbnail_0 到 thumbnail_9）
+    else if (file.fieldname.startsWith('thumbnail_')) {
+      if (['.jpg', '.jpeg', '.png', '.webp', '.svg'].includes(ext)) {
         cb(null, true);
       } else {
-        cb(new Error('缩略图只支持 JPG/PNG/WEBP 格式'));
+        cb(new Error('缩略图只支持 JPG/PNG/WEBP/SVG 格式'));
       }
     }
     else {
-      cb(new Error('不支持的文件字段'));
+      cb(new Error(`不支持的文件字段: ${file.fieldname}`));
     }
   }
 });
@@ -132,19 +132,27 @@ app.get('/api/me', authMiddleware, (req, res) => {
 // 上传视频（支持单个或多个）
 app.post('/api/videos/upload', authMiddleware, upload.fields([
   { name: 'videos', maxCount: 10 },
-  { name: 'thumbnails', maxCount: 10 }
+  { name: 'thumbnail_0', maxCount: 1 },
+  { name: 'thumbnail_1', maxCount: 1 },
+  { name: 'thumbnail_2', maxCount: 1 },
+  { name: 'thumbnail_3', maxCount: 1 },
+  { name: 'thumbnail_4', maxCount: 1 },
+  { name: 'thumbnail_5', maxCount: 1 },
+  { name: 'thumbnail_6', maxCount: 1 },
+  { name: 'thumbnail_7', maxCount: 1 },
+  { name: 'thumbnail_8', maxCount: 1 },
+  { name: 'thumbnail_9', maxCount: 1 },
 ]), (req, res) => {
   try {
     const { title, tags, description, password } = req.body;
     const videoFiles = req.files['videos'] || [];
-    const thumbnailFiles = req.files['thumbnails'] || [];
-
+    
     if (!videoFiles || videoFiles.length === 0) {
       return res.status(400).json({ error: '请选择要上传的视频' });
     }
-
+    
     const uploadedVideos = [];
-
+    
     videoFiles.forEach((file, index) => {
       // 确定视频标题
       let videoTitle;
@@ -163,21 +171,20 @@ app.post('/api/videos/upload', authMiddleware, upload.fields([
       const videoTags = Array.isArray(tags) ? tags[index] : (tags || '');
       const videoDesc = Array.isArray(description) ? description[index] : (description || '');
       const videoPassword = Array.isArray(password) ? password[index] : (password || '');
-
-      // 确定缩略图路径
-      let thumbnailPath = '/default-thumbnail.jpg'; // 默认缩略图
-
-      // 如果有上传的缩略图，则使用它
-      if (thumbnailFiles[index]) {
-        const thumbFile = thumbnailFiles[index];
-        const thumbnailName = `${path.parse(file.filename).name}${path.extname(thumbFile.filename)}`;
+      
+      // 处理缩略图
+      let thumbnailPath = '/default-thumbnail.jpg';
+      const thumbField = `thumbnail_${index}`;
+      if (req.files[thumbField]) {
+        const thumbFile = req.files[thumbField][0];
+        const thumbnailName = `${path.parse(file.filename).name}${path.extname(thumbFile.originalname)}`;
         const thumbDestPath = path.join(thumbnailsDir, thumbnailName);
-
+        
         // 移动缩略图到正确位置
         fs.renameSync(thumbFile.path, thumbDestPath);
         thumbnailPath = `/uploads/thumbnails/${thumbnailName}`;
       }
-
+      
       const video = videoDb.createVideo({
         userId: req.user.id,
         username: req.user.username,

@@ -121,42 +121,61 @@
           const thumbnail = await extractVideoFrame(file);
           videoThumbnails.push(thumbnail);
         } catch (e) {
-          console.error('生成缩略图失败:', e);
-          // 如果失败，使用默认缩略图
-          videoThumbnails.push(null);
+          console.error(`视频 ${i+1} 缩略图生成失败，使用默认缩略图:`, e);
+          // 加载默认缩略图作为 fallback
+          try {
+            const response = await fetch('/default-thumbnail.jpg');
+            const blob = await response.blob();
+            videoThumbnails.push(blob);
+          } catch (e2) {
+            console.error('默认缩略图加载失败:', e2);
+            videoThumbnails.push(null); // 后端会使用默认缩略图
+          }
         }
       }
-
+      
       // 显示缩略图预览
       showThumbnailPreview();
     }
 
-    // 从视频提取第一帧
+    // 从视频提取第一帧（修复版 - 兼容所有浏览器）
     function extractVideoFrame(file) {
       return new Promise((resolve, reject) => {
         const video = document.createElement('video');
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-
+        
+        // 关键：临时添加到 DOM 以确保视频加载（兼容所有浏览器）
+        video.style.display = 'none';
+        document.body.appendChild(video);
+        
         video.preload = 'metadata';
         video.muted = true;
-
+        video.playsInline = true;
+        
+        const videoUrl = URL.createObjectURL(file);
+        video.src = videoUrl;
+        
         video.onloadedmetadata = () => {
           // 设置 canvas 尺寸（缩略图尺寸：320x180）
           canvas.width = 320;
           canvas.height = 180;
-
-          // 跳到第1秒（如果视频长度>1秒）
+          
+          // 跳到第1秒或视频中间（取较小的）
           video.currentTime = Math.min(1, video.duration / 2);
         };
-
+        
         video.onseeked = () => {
           try {
             // 绘制视频帧到 canvas
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
+            
             // 转换为 JPEG blob
             canvas.toBlob((blob) => {
+              // 清理临时元素和 URL
+              document.body.removeChild(video);
+              URL.revokeObjectURL(videoUrl);
+              
               if (blob) {
                 resolve(blob);
               } else {
@@ -164,16 +183,17 @@
               }
             }, 'image/jpeg', 0.85); // 质量 0.85
           } catch (e) {
+            document.body.removeChild(video);
+            URL.revokeObjectURL(videoUrl);
             reject(e);
           }
         };
-
+        
         video.onerror = (e) => {
-          reject(e);
+          document.body.removeChild(video);
+          URL.revokeObjectURL(videoUrl);
+          reject(new Error('视频加载失败，无法生成缩略图'));
         };
-
-        // 创建视频 URL
-        video.src = URL.createObjectURL(file);
       });
     }
 
@@ -232,11 +252,11 @@
       selectedFiles.forEach((file, index) => {
         formData.append('videos', file);
 
-        // 添加对应的缩略图（如果存在）
+        // 添加对应的缩略图（按索引匹配）
         if (videoThumbnails[index]) {
           // 将 blob 转换为 File 对象
           const thumbFile = new File([videoThumbnails[index]], `thumb_${index}.jpg`, { type: 'image/jpeg' });
-          formData.append('thumbnails', thumbFile);
+          formData.append(`thumbnail_${index}`, thumbFile);
         }
       });
       formData.append('title', title);

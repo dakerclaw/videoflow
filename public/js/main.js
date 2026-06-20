@@ -220,10 +220,15 @@ async function deleteSelected() {
     showToast('请先选择视频', 'info');
     return;
   }
-
+  
   if (!confirm(`确定要删除选中的 ${selectedVideos.size} 个视频吗？`)) return;
-
+  
   const token = localStorage.getItem('token');
+  if (!token) {
+    showToast('请先登录', 'error');
+    return;
+  }
+  
   try {
     const res = await fetch('/api/videos/batch-delete', {
       method: 'POST',
@@ -233,18 +238,21 @@ async function deleteSelected() {
       },
       body: JSON.stringify({ ids: Array.from(selectedVideos) })
     });
-
+    
     const data = await res.json();
     if (res.ok) {
       showToast(data.message, 'success');
       selectedVideos.clear();
+      updateSelectActions(); // 更新全选/取消全选按钮
       loadVideos();
     } else {
-      showToast(data.error, 'error');
+      showToast(data.error || '删除失败', 'error');
     }
   } catch (e) {
-    showToast('删除失败', 'error');
+    console.error('删除失败:', e);
+    showToast('删除失败，请重试', 'error');
   }
+}
 }
 
 // ========== 搜索和筛选 ==========
