@@ -54,19 +54,34 @@ function renderLoggedOutNav() {
     <a href="/login.html">登录</a>
     <a href="/register.html">注册</a>
   `;
+  
+  // 清空筛选栏的操作按钮
+  const filterActions = document.getElementById('filterActions');
+  if (filterActions) {
+    filterActions.innerHTML = '';
+  }
 }
 
 function renderLoggedInNav() {
+  // 导航栏只显示用户信息和退出按钮
   let html = `
     <span class="navbar-user">
       <span class="username">${currentUser.username}</span>
       ${currentUser.isAdmin ? '<a href="/admin.html" class="btn btn-outline btn-sm">管理后台</a>' : ''}
-      <a href="/upload.html" class="btn btn-primary btn-sm">上传视频</a>
-      <button class="btn btn-outline btn-sm" onclick="toggleSelectMode()">${isSelectMode ? '取消选择' : '管理'}</button>
       <button class="btn btn-outline btn-sm" onclick="logout()">退出</button>
     </span>
   `;
   document.getElementById('navLinks').innerHTML = html;
+  
+  // 在筛选栏右侧显示操作按钮
+  const filterActions = document.getElementById('filterActions');
+  if (filterActions) {
+    let actionsHtml = `
+      <button class="btn btn-primary btn-sm" onclick="window.location.href='/upload.html'">上传视频</button>
+      <button class="btn btn-outline btn-sm" onclick="toggleSelectMode()">${isSelectMode ? '取消选择' : '管理'}</button>
+    `;
+    filterActions.innerHTML = actionsHtml;
+  }
 }
 
 function logout() {
