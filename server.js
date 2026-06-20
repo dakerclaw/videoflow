@@ -9,15 +9,29 @@ const { authMiddleware, adminMiddleware } = require('./middleware/auth');
 const app = express();
 const PORT = process.env.PORT || 3291;
 
+// 密码验证临时 token 存储（内存中，5分钟有效）
+const passwordTokens = new Map();
+
+// 清理过期的 token（每5分钟执行一次）
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, data] of passwordTokens.entries()) {
+    if (now - data.timestamp > 5 * 60 * 1000) {
+      passwordTokens.delete(token);
+    }
+  }
+}, 5 * 60 * 1000);
+
 // 中间件
-// 设置字符编码（解决中文乱码问题）
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// 设置字符编码（解决中文乱码问题，必须放在 cors() 之后）
 app.use((req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   next();
 });
-app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // 静态文件服务
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -233,6 +247,25 @@ app.get('/api/videos/:id', (req, res) => {
     if (!video) {
       return res.status(404).json({ error: '视频不存在' });
     }
+
+    // 检查密码（通过 URL 参数中的临时 token 或已验证状态）
+    if (video.hasPassword) {
+      const authToken = req.query.auth;
+      
+      // 检查是否有有效的临时 token
+      if (authToken && passwordTokens.has(authToken)) {
+        const tokenData = passwordTokens.get(authToken);
+        if (tokenData.videoId === video.id) {
+          // Token 有效，继续
+        } else {
+          return res.status(403).json({ error: '密码错误', hasPassword: true });
+        }
+      } else {
+        // 没有有效的 token，返回需要密码的错误
+        return res.status(403).json({ error: '需要密码', hasPassword: true });
+      }
+    }
+
     // 增加播放次数
     video.views = (video.views || 0) + 1;
     videoDb.updateVideo(video.id, { views: video.views });
@@ -257,7 +290,14 @@ app.post('/api/videos/:id/verify-password', (req, res) => {
     }
 
     if (password === video.password) {
-      return res.json({ verified: true });
+      // 生成临时 token（5分钟有效）
+      const token = require('crypto').randomBytes(16).toString('hex');
+      passwordTokens.set(token, {
+        videoId: video.id,
+        timestamp: Date.now()
+      });
+      
+      return res.json({ verified: true, token });
     }
 
     res.status(403).json({ error: '密码错误' });

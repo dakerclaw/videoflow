@@ -108,6 +108,7 @@
     async function loadVideo() {
       const urlParams = new URLSearchParams(window.location.search);
       const videoId = urlParams.get('id');
+      const authToken = urlParams.get('auth'); // 获取临时 token
 
       if (!videoId) {
         showToast('视频ID不存在', 'error');
@@ -116,9 +117,22 @@
       }
 
       try {
-        const res = await fetch(`/api/videos/${videoId}`);
+        // 如果有临时 token，附加到请求 URL
+        const apiUrl = authToken 
+          ? `/api/videos/${videoId}?auth=${authToken}`
+          : `/api/videos/${videoId}`;
+        
+        const res = await fetch(apiUrl);
+        
         if (!res.ok) {
-          showToast('视频不存在', 'error');
+          const errorData = await res.json();
+          if (res.status === 403 && errorData.hasPassword) {
+            // 需要密码，显示密码模态框
+            currentVideo = { id: videoId, hasPassword: true };
+            showPasswordModal();
+            return;
+          }
+          showToast(errorData.error || '视频不存在', 'error');
           setTimeout(() => window.location.href = '/', 1000);
           return;
         }
@@ -126,17 +140,18 @@
         currentVideo = await res.json();
         document.title = `${currentVideo.title} - Videoflow`;
 
-        // 检查密码
-        if (currentVideo.hasPassword) {
-          // 检查是否已经验证过密码（当前会话）
-          if (verifiedVideos.has(currentVideo.id)) {
-            // 已经验证过，直接播放
-            playVideo();
-          } else {
-            // 需要输入密码
-            showPasswordModal();
+        // 如果 URL 中有 token，存储到 sessionStorage（避免刷新后丢失）
+        if (authToken) {
+          let verifiedVideos = [];
+          try {
+            verifiedVideos = JSON.parse(sessionStorage.getItem('verifiedVideos') || '[]');
+          } catch (e) {
+            verifiedVideos = [];
           }
-          return;
+          if (!verifiedVideos.includes(videoId)) {
+            verifiedVideos.push(videoId);
+            sessionStorage.setItem('verifiedVideos', JSON.stringify(verifiedVideos));
+          }
         }
 
         playVideo();
