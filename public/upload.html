@@ -177,9 +177,18 @@
         }
 
         video.onloadedmetadata = () => {
-          // 设置 canvas 尺寸（缩略图尺寸：320x180）
+          // 根据视频实际比例设置 canvas 尺寸（保持原始比例）
+          const videoRatio = video.videoWidth / video.videoHeight;
+          
+          // 固定宽度为 320，根据视频比例计算高度
           canvas.width = 320;
-          canvas.height = 180;
+          canvas.height = Math.round(320 / videoRatio);
+          
+          // 限制最大高度为 320（防止超宽视频的缩略图过高）
+          if (canvas.height > 320) {
+            canvas.height = 320;
+            canvas.width = Math.round(320 * videoRatio);
+          }
 
           // 跳到第1秒或视频中间（取较小的）
           video.currentTime = Math.min(1, video.duration / 2);
@@ -221,19 +230,41 @@
       if (videoThumbnails.length === 0) return;
 
       previewDiv.style.display = 'block';
-      listDiv.innerHTML = videoThumbnails.map((thumb, index) => `
-        <div style="text-align:center;">
-          ${thumb ? `
-            <img src="${URL.createObjectURL(thumb)}" 
-                 style="width:160px; height:90px; object-fit:cover; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.3);">
-          ` : `
-            <div style="width:160px; height:90px; background:var(--bg-card); border-radius:8px; display:flex; align-items:center; justify-content:center;">
-              <span style="font-size:2rem;">🎬</span>
-            </div>
-          `}
-          <div style="margin-top:0.3rem; font-size:0.8rem; color:var(--text-muted);">视频 ${index + 1}</div>
-        </div>
-      `).join('');
+      
+      // 清空现有内容
+      listDiv.innerHTML = '';
+      
+      // 为每个缩略图创建预览
+      videoThumbnails.forEach((thumb, index) => {
+        const container = document.createElement('div');
+        container.style.cssText = 'text-align:center; display:inline-block; margin:0.5rem;';
+        
+        if (thumb) {
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(thumb);
+          img.style.cssText = 'border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.3); max-width:200px;';
+          img.onload = function() {
+            // 根据图片实际比例设置容器高度
+            const ratio = this.naturalWidth / this.naturalHeight;
+            this.style.width = '160px';
+            this.style.height = Math.round(160 / ratio) + 'px';
+            this.style.objectFit = 'contain';
+          };
+          container.appendChild(img);
+        } else {
+          const placeholder = document.createElement('div');
+          placeholder.style.cssText = 'width:160px; height:90px; background:var(--bg-card); border-radius:8px; display:flex; align-items:center; justify-content:center;';
+          placeholder.innerHTML = '<span style="font-size:2rem;">🎬</span>';
+          container.appendChild(placeholder);
+        }
+        
+        const label = document.createElement('div');
+        label.style.cssText = 'margin-top:0.3rem; font-size:0.8rem; color:var(--text-muted);';
+        label.textContent = `视频 ${index + 1}`;
+        container.appendChild(label);
+        
+        listDiv.appendChild(container);
+      });
     }
 
     function showFileList() {
