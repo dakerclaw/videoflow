@@ -152,7 +152,17 @@ function renderVideos(videos) {
         ` : ''}
       </div>
     </div>
-  `).join('');
+    `).join('');
+  
+  // 处理已缓存的图片（onload 可能不会触发）
+  setTimeout(() => {
+    container.querySelectorAll('.video-thumbnail img').forEach(img => {
+      if (img.complete && img.naturalWidth > 0) {
+        const videoId = img.closest('.video-thumbnail')?.id?.replace('thumb-', '');
+        if (videoId) fixThumbnailAspect(img, videoId);
+      }
+    });
+  }, 0);
 }
 
 // ========== 视频点击处理 ==========
