@@ -12,6 +12,27 @@ const PORT = process.env.PORT || 3291;
 // 密码验证临时 token 存储（内存中，5分钟有效）
 const passwordTokens = new Map();
 
+// 辅助函数：正确处理中文文件名（解码 URL 编码的文件名）
+function decodeFilename(filename) {
+  if (!filename) return '';
+  
+  try {
+    // 移除路径部分（安全考虑）
+    filename = path.basename(filename);
+    
+    // 尝试解码 URL 编码的文件名（浏览器上传时可能会 URL 编码）
+    // 检查是否包含 URL 编码的字符
+    if (filename.includes('%')) {
+      filename = decodeURIComponent(filename);
+    }
+    
+    return filename;
+  } catch (e) {
+    console.error('文件名解码失败:', e);
+    return filename;
+  }
+}
+
 // 清理过期的 token（每5分钟执行一次）
 setInterval(() => {
   const now = Date.now();
@@ -167,17 +188,20 @@ app.post('/api/videos/upload', authMiddleware, upload.fields([
     const uploadedVideos = [];
     
     videoFiles.forEach((file, index) => {
+      // 正确处理中文文件名
+      const decodedOriginalName = decodeFilename(file.originalname);
+      
       // 确定视频标题
       let videoTitle;
       if (Array.isArray(title)) {
         videoTitle = title[index] && title[index].trim()
           ? title[index].trim()
-          : path.parse(file.originalname).name;
+          : path.parse(decodedOriginalName).name;
       } else {
         if (title && title.trim()) {
           videoTitle = videoFiles.length > 1 ? `${title.trim()} (${index + 1})` : title.trim();
         } else {
-          videoTitle = path.parse(file.originalname).name;
+          videoTitle = path.parse(decodedOriginalName).name;
         }
       }
 
@@ -202,7 +226,7 @@ app.post('/api/videos/upload', authMiddleware, upload.fields([
         userId: req.user.id,
         username: req.user.username,
         fileName: file.filename,
-        originalName: file.originalname,
+        originalName: decodedOriginalName,
         filePath: `/uploads/videos/${file.filename}`,
         thumbnail: thumbnailPath,
         title: videoTitle,
