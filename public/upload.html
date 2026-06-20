@@ -144,38 +144,50 @@
         const video = document.createElement('video');
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        
+
         // 关键：临时添加到 DOM 以确保视频加载（兼容所有浏览器）
         video.style.display = 'none';
         document.body.appendChild(video);
-        
+
         video.preload = 'metadata';
         video.muted = true;
         video.playsInline = true;
-        
+
         const videoUrl = URL.createObjectURL(file);
         video.src = videoUrl;
-        
+
+        // 设置超时（防止视频加载卡住）
+        const timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error('视频加载超时'));
+        }, 10000); // 10秒超时
+
+        function cleanup() {
+          clearTimeout(timeout);
+          if (video.parentNode) {
+            document.body.removeChild(video);
+          }
+          URL.revokeObjectURL(videoUrl);
+        }
+
         video.onloadedmetadata = () => {
           // 设置 canvas 尺寸（缩略图尺寸：320x180）
           canvas.width = 320;
           canvas.height = 180;
-          
+
           // 跳到第1秒或视频中间（取较小的）
           video.currentTime = Math.min(1, video.duration / 2);
         };
-        
+
         video.onseeked = () => {
           try {
             // 绘制视频帧到 canvas
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
+
             // 转换为 JPEG blob
             canvas.toBlob((blob) => {
-              // 清理临时元素和 URL
-              document.body.removeChild(video);
-              URL.revokeObjectURL(videoUrl);
-              
+              cleanup();
+
               if (blob) {
                 resolve(blob);
               } else {
@@ -183,15 +195,13 @@
               }
             }, 'image/jpeg', 0.85); // 质量 0.85
           } catch (e) {
-            document.body.removeChild(video);
-            URL.revokeObjectURL(videoUrl);
+            cleanup();
             reject(e);
           }
         };
-        
+
         video.onerror = (e) => {
-          document.body.removeChild(video);
-          URL.revokeObjectURL(videoUrl);
+          cleanup();
           reject(new Error('视频加载失败，无法生成缩略图'));
         };
       });
