@@ -267,6 +267,9 @@
       const formData = new FormData();
       selectedFiles.forEach((file, index) => {
         formData.append('videos', file);
+        
+        // 单独发送文件名（确保中文文件名编码正确）
+        formData.append(`filename_${index}`, file.name);
 
         // 添加对应的缩略图（按索引匹配）
         if (videoThumbnails[index]) {

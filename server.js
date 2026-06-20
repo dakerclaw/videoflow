@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
+const iconv = require('iconv-lite');
 const { userDb, videoDb, configDb, jwtUtil } = require('./db/database');
 const { authMiddleware, adminMiddleware } = require('./middleware/auth');
 
@@ -12,24 +13,62 @@ const PORT = process.env.PORT || 3291;
 // 密码验证临时 token 存储（内存中，5分钟有效）
 const passwordTokens = new Map();
 
-// 辅助函数：正确处理中文文件名（解码 URL 编码的文件名）
+// 辅助函数：正确处理中文文件名（从前端接收的正确编码的文件名）
 function decodeFilename(filename) {
   if (!filename) return '';
   
   try {
     // 移除路径部分（安全考虑）
     filename = path.basename(filename);
+    return filename;
+  } catch (e) {
+    console.error('文件名处理失败:', e);
+    return filename;
+  }
+}
+
+// 辅助函数：尝试修复可能损坏的中文文件名
+function repairChineseFilename(filename) {
+  if (!filename) return '';
+  
+  try {
+    // 方法1: 如果是 Buffer（某些情况下会发生），转换为字符串
+    if (Buffer.isBuffer(filename)) {
+      // 尝试用 UTF-8 解码
+      let decoded = filename.toString('utf8');
+      // 检查是否包含有效的 UTF-8 字符
+      if (isValidUTF8(decoded)) {
+        return decoded;
+      }
+      // 尝试用 GBK 解码（常见的中文编码）
+      decoded = iconv.decode(filename, 'GBK');
+      return decoded;
+    }
     
-    // 尝试解码 URL 编码的文件名（浏览器上传时可能会 URL 编码）
-    // 检查是否包含 URL 编码的字符
-    if (filename.includes('%')) {
-      filename = decodeURIComponent(filename);
+    // 方法2: 如果文件名包含乱码特征（如 Ã¥Â®Â¶），尝试修复
+    // 这可能是 UTF-8 被错误地解释为 Latin-1 后再编码的结果
+    if (filename.includes('Ã') || filename.includes('Â')) {
+      // 尝试将字符串转换回原始字节，然后用 UTF-8 解码
+      const buffer = Buffer.from(filename, 'latin1');
+      const decoded = buffer.toString('utf8');
+      if (isValidUTF8(decoded)) {
+        return decoded;
+      }
     }
     
     return filename;
   } catch (e) {
-    console.error('文件名解码失败:', e);
+    console.error('文件名修复失败:', e);
     return filename;
+  }
+}
+
+// 检查字符串是否是有效的 UTF-8
+function isValidUTF8(str) {
+  try {
+    return Buffer.from(str, 'utf8').toString('utf8') === str;
+  } catch (e) {
+    return false;
   }
 }
 
@@ -188,20 +227,28 @@ app.post('/api/videos/upload', authMiddleware, upload.fields([
     const uploadedVideos = [];
     
     videoFiles.forEach((file, index) => {
-      // 正确处理中文文件名
-      const decodedOriginalName = decodeFilename(file.originalname);
+      // 优先使用前端发送的文件名（确保中文编码正确）
+      let originalName = req.body[`filename_${index}`];
+      
+      // 如果前端没有发送文件名，则使用 file.originalname
+      if (!originalName) {
+        originalName = file.originalname;
+      }
+      
+      // 尝试修复可能损坏的中文文件名
+      originalName = repairChineseFilename(originalName);
       
       // 确定视频标题
       let videoTitle;
       if (Array.isArray(title)) {
         videoTitle = title[index] && title[index].trim()
           ? title[index].trim()
-          : path.parse(decodedOriginalName).name;
+          : path.parse(originalName).name;
       } else {
         if (title && title.trim()) {
           videoTitle = videoFiles.length > 1 ? `${title.trim()} (${index + 1})` : title.trim();
         } else {
-          videoTitle = path.parse(decodedOriginalName).name;
+          videoTitle = path.parse(originalName).name;
         }
       }
 
@@ -226,7 +273,7 @@ app.post('/api/videos/upload', authMiddleware, upload.fields([
         userId: req.user.id,
         username: req.user.username,
         fileName: file.filename,
-        originalName: decodedOriginalName,
+        originalName: originalName,
         filePath: `/uploads/videos/${file.filename}`,
         thumbnail: thumbnailPath,
         title: videoTitle,
