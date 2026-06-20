@@ -457,5 +457,5 @@ app.get('/admin.html', (req, res) => {
 // 启动服务器
 app.listen(PORT, () => {
   console.log(`🎬 Videoflow 服务器运行在 http://localhost:${PORT}`);
-  console.log(`📝 管理员账号: dackerclaw / daker123`);
+  console.log(`📝 管理员账号: dakerclaw / daker123`);
 });

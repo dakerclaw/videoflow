@@ -62,7 +62,7 @@ npm start
 
 #### 默认管理员账号
 ```
-用户名: dackerclaw
+用户名: dakerclaw
 密码: daker123
 ```
 
@@ -78,7 +78,7 @@ npm start
 
 1. **克隆项目**
 ```bash
-git clone https://github.com/dackerclaw/videoflow.git
+git clone https://github.com/dakerclaw/videoflow.git
 cd videoflow
 ```
 
@@ -149,7 +149,7 @@ sudo apt-get install git  # Ubuntu/Debian
 # sudo yum install git    # CentOS/RHEL
 
 # 克隆项目
-git clone https://github.com/dackerclaw/videoflow.git
+git clone https://github.com/dakerclaw/videoflow.git
 cd videoflow
 ```
 
@@ -524,12 +524,12 @@ chmod -R 755 uploads/ data/
 
 ## 📧 联系方式
 
-- 作者：dackerclaw
-- GitHub：[https://github.com/dackerclaw](https://github.com/dackerclaw)
-- 问题反馈：[https://github.com/dackerclaw/videoflow/issues](https://github.com/dackerclaw/videoflow/issues)
+- 作者：dakerclaw
+- GitHub：[https://github.com/dakerclaw](https://github.com/dakerclaw)
+- 问题反馈：[https://github.com/dakerclaw/videoflow/issues](https://github.com/dakerclaw/videoflow/issues)
 
 ---
 
 <div align="center">
-Made with ❤️ by dackerclaw
+Made with ❤️ by dakerclaw
 </div>

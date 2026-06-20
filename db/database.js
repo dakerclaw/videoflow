@@ -51,13 +51,13 @@ if (!db.data) {
 }
 
 // 如果管理员账号不存在，创建它
-const adminExists = db.data.users.find(u => u.username === 'dackerclaw');
+const adminExists = db.data.users.find(u => u.username === 'dakerclaw');
 if (!adminExists) {
   const salt = bcrypt.genSaltSync(10);
   const passwordHash = bcrypt.hashSync('daker123', salt);
   db.data.users.push({
     id: uuid.v4(),
-    username: 'dackerclaw',
+    username: 'dakerclaw',
     password: passwordHash,
     contact: '',
     isAdmin: true,
