@@ -178,12 +178,26 @@
 
         const data = await res.json();
         if (data.verified) {
+          // 获取 token 并重新加载视频（附带 token）
+          const authToken = data.token;
+          
           // 记录已验证的视频 ID（当前会话）
           verifiedVideos.add(currentVideo.id);
           sessionStorage.setItem('verifiedVideos', JSON.stringify(Array.from(verifiedVideos)));
 
           document.getElementById('passwordModal').style.display = 'none';
-          playVideo();
+          
+          // 重新加载视频，这次附带 token
+          const apiUrl = `/api/videos/${currentVideo.id}?auth=${authToken}`;
+          const videoRes = await fetch(apiUrl);
+          
+          if (videoRes.ok) {
+            currentVideo = await videoRes.json();
+            document.title = `${currentVideo.title} - Videoflow`;
+            playVideo();
+          } else {
+            showToast('加载视频失败', 'error');
+          }
         } else {
           showToast('密码错误', 'error');
         }
