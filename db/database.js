@@ -1,10 +1,10 @@
-const { LowSync } = require('lowdb');
-const { JSONFileSync } = require('lowdb/node');
 const path = require('path');
+const fs = require('fs');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const uuid = require('uuid');
-const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
+const JsonDB = require('node-json-db').JsonDB;
+const { Config } = require('node-json-db/dist/lib/node-json-db/core');
 
 const dbPath = path.join(__dirname, '../data/db.json');
 const JWT_SECRET = 'videoflow_secret_key_2024';
@@ -15,255 +15,245 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-// 默认数据
-const defaultData = {
-  users: [],
-  videos: [],
-  siteConfig: [{
-    id: 'site',
-    title: 'Videoflow',
-    name: 'Videoflow',
-    description: '分享精彩视频瞬间',
-    copyright: '© 2024 Videoflow. All rights reserved.',
-    logo: ''
-  }]
-};
+// 使用 fs 直接读写 JSON 文件（更简单的方案）
+class Database {
+  constructor() {
+    this.dbPath = dbPath;
+    this.loadData();
+  }
 
-// 如果数据库文件不存在，创建默认数据
-if (!fs.existsSync(dbPath)) {
-  fs.writeFileSync(dbPath, JSON.stringify(defaultData, null, 2));
-}
+  loadData() {
+    try {
+      if (fs.existsSync(this.dbPath)) {
+        const data = fs.readFileSync(this.dbPath, 'utf8');
+        this.data = JSON.parse(data);
+      } else {
+        this.data = this.getDefaultData();
+        this.saveData();
+      }
+    } catch (e) {
+      console.error('加载数据库失败:', e);
+      this.data = this.getDefaultData();
+    }
+  }
 
-// 初始化 lowdb
-const adapter = new JSONFileSync(dbPath);
-const db = new LowSync(adapter);
+  saveData() {
+    try {
+      fs.writeFileSync(this.dbPath, JSON.stringify(this.data, null, 2));
+    } catch (e) {
+      console.error('保存数据库失败:', e);
+    }
+  }
 
-// 读取数据
-db.read();
-
-// 确保数据存在
-if (!db.data) {
-  db.data = defaultData;
-  db.write();
-}
-
-// 确保必要的字段存在
-if (!db.data.users) db.data.users = [];
-if (!db.data.videos) db.data.videos = [];
-if (!db.data.siteConfig || db.data.siteConfig.length === 0) {
-  db.data.siteConfig = [defaultData.siteConfig[0]];
-}
-db.write();
-
-// 如果管理员账号不存在，创建它
-const adminExists = db.data.users.find(u => u.username === 'dakerclaw');
-if (!adminExists) {
-  const salt = bcrypt.genSaltSync(10);
-  const passwordHash = bcrypt.hashSync('daker123', salt);
-  db.data.users.push({
-    id: uuid.v4(),
-    username: 'dakerclaw',
-    password: passwordHash,
-    contact: '',
-    isAdmin: true,
-    isDisabled: false,
-    createdAt: new Date().toISOString()
-  });
-  db.write();
-}
-
-// ========== 用户相关操作 ==========
-const userDb = {
-  // 创建用户
-  createUser(username, password, contact = '') {
-    const salt = bcrypt.genSaltSync(10);
-    const passwordHash = bcrypt.hashSync(password, salt);
-    const user = {
-      id: uuid.v4(),
-      username,
-      password: passwordHash,
-      contact,
-      isAdmin: false,
-      isDisabled: false,
-      createdAt: new Date().toISOString()
+  getDefaultData() {
+    return {
+      users: [],
+      videos: [],
+      siteConfig: {
+        id: 'site',
+        title: 'Videoflow',
+        name: 'Videoflow',
+        description: '分享精彩视频瞬间',
+        copyright: '© 2024 Videoflow. All rights reserved.',
+        logo: ''
+      }
     };
-    db.data.users.push(user);
-    db.write();
-    return { ...user, password: undefined };
-  },
+  }
+}
 
-  // 根据用户名查找用户
+const db = new Database();
+
+// 用户数据库操作
+const userDb = {
   findByUsername(username) {
     return db.data.users.find(u => u.username === username);
   },
 
-  // 根据ID查找用户
   findById(id) {
     return db.data.users.find(u => u.id === id);
   },
 
-  // 获取所有用户
-  getAllUsers() {
-    return db.data.users.map(u => ({ ...u, password: undefined }));
+  createUser(username, password, contact) {
+    const salt = bcrypt.genSaltSync(10);
+    const passwordHash = bcrypt.hashSync(password, salt);
+    
+    const user = {
+      id: uuidv4(),
+      username,
+      password: passwordHash,
+      contact: contact || '',
+      isAdmin: false,
+      isDisabled: false,
+      createdAt: new Date().toISOString()
+    };
+
+    db.data.users.push(user);
+    db.saveData();
+
+    const { password: _, ...userWithoutPassword } = user;
+    return userWithoutPassword;
   },
 
-  // 更新用户
-  updateUser(id, updates) {
-    const user = db.data.users.find(u => u.id === id);
-    if (user) {
-      Object.assign(user, updates);
-      db.write();
-      return { ...user, password: undefined };
-    }
-    return null;
-  },
-
-  // 删除用户
-  deleteUser(id) {
-    const index = db.data.users.findIndex(u => u.id === id);
-    if (index !== -1) {
-      db.data.users.splice(index, 1);
-      // 同时删除该用户的视频
-      db.data.videos = db.data.videos.filter(v => v.userId !== id);
-      db.write();
-      return true;
-    }
-    return false;
-  },
-
-  // 验证密码
   verifyPassword(user, password) {
     return bcrypt.compareSync(password, user.password);
+  },
+
+  getAllUsers() {
+    return db.data.users.map(u => {
+      const { password, ...userWithoutPassword } = u;
+      return userWithoutPassword;
+    });
+  },
+
+  updateUser(id, updates) {
+    const index = db.data.users.findIndex(u => u.id === id);
+    if (index === -1) return null;
+
+    // 如果更新密码，需要加密
+    if (updates.password) {
+      const salt = bcrypt.genSaltSync(10);
+      updates.password = bcrypt.hashSync(updates.password, salt);
+    }
+
+    db.data.users[index] = { ...db.data.users[index], ...updates };
+    db.saveData();
+
+    const { password, ...userWithoutPassword } = db.data.users[index];
+    return userWithoutPassword;
+  },
+
+  deleteUser(id) {
+    const index = db.data.users.findIndex(u => u.id === id);
+    if (index === -1) return false;
+
+    db.data.users.splice(index, 1);
+    db.saveData();
+    return true;
   }
 };
 
-// ========== 视频相关操作 ==========
+// 视频数据库操作
 const videoDb = {
-  // 创建视频记录
   createVideo(videoData) {
     const video = {
-      id: uuid.v4(),
+      id: uuidv4(),
       ...videoData,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: new Date().toISOString()
     };
+
     db.data.videos.push(video);
-    db.write();
+    db.saveData();
     return video;
   },
 
-  // 获取所有视频（支持筛选和搜索）
   getVideos({ search, year, month, userId } = {}) {
-    let videos = db.data.videos;
+    let videos = [...db.data.videos];
 
-    // 搜索筛选
+    // 搜索过滤
     if (search) {
       const searchLower = search.toLowerCase();
-      videos = videos.filter(v =>
+      videos = videos.filter(v => 
         v.title.toLowerCase().includes(searchLower) ||
         (v.tags && v.tags.toLowerCase().includes(searchLower)) ||
         v.username.toLowerCase().includes(searchLower)
       );
     }
 
-    // 按上传用户筛选
+    // 用户过滤
     if (userId) {
       videos = videos.filter(v => v.userId === userId);
     }
 
-    // 按年月筛选
+    // 时间筛选
     if (year) {
       videos = videos.filter(v => {
-        const date = new Date(v.createdAt);
-        return date.getFullYear().toString() === year;
-      });
-    }
-    if (month) {
-      videos = videos.filter(v => {
-        const date = new Date(v.createdAt);
-        return (date.getMonth() + 1).toString() === month;
+        const videoYear = new Date(v.createdAt).getFullYear().toString();
+        return videoYear === year;
       });
     }
 
-    // 按上传时间倒序
+    if (month) {
+      videos = videos.filter(v => {
+        const videoMonth = (new Date(v.createdAt).getMonth() + 1).toString().padStart(2, '0');
+        return videoMonth === month;
+      });
+    }
+
+    // 按时间倒序
     videos.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     return videos;
   },
 
-  // 根据ID获取视频
   getVideoById(id) {
     return db.data.videos.find(v => v.id === id);
   },
 
-  // 更新视频
   updateVideo(id, updates) {
-    const video = db.data.videos.find(v => v.id === id);
-    if (video) {
-      Object.assign(video, updates, { updatedAt: new Date().toISOString() });
-      db.write();
-      return video;
-    }
-    return null;
+    const index = db.data.videos.findIndex(v => v.id === id);
+    if (index === -1) return null;
+
+    db.data.videos[index] = { ...db.data.videos[index], ...updates };
+    db.saveData();
+    return db.data.videos[index];
   },
 
-  // 删除视频
   deleteVideo(id) {
     const index = db.data.videos.findIndex(v => v.id === id);
-    if (index !== -1) {
-      const video = db.data.videos[index];
-      db.data.videos.splice(index, 1);
-      db.write();
-      return video;
-    }
-    return null;
+    if (index === -1) return false;
+
+    db.data.videos.splice(index, 1);
+    db.saveData();
+    return true;
   },
 
-  // 批量删除视频
   deleteVideos(ids) {
-    let deleted = [];
-    ids.forEach(id => {
-      const index = db.data.videos.findIndex(v => v.id === id);
-      if (index !== -1) {
-        deleted.push(db.data.videos[index]);
-        db.data.videos.splice(index, 1);
+    db.data.videos = db.data.videos.filter(v => !ids.includes(v.id));
+    db.saveData();
+    return true;
+  },
+
+  getArchiveList() {
+    const archives = {};
+    
+    db.data.videos.forEach(video => {
+      const date = new Date(video.createdAt);
+      const year = date.getFullYear().toString();
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      
+      if (!archives[year]) {
+        archives[year] = [];
+      }
+      
+      if (!archives[year].includes(month)) {
+        archives[year].push(month);
       }
     });
-    db.write();
-    return deleted;
-  },
 
-  // 获取视频归档年月列表
-  getArchiveList() {
-    const archives = new Set();
-    db.data.videos.forEach(v => {
-      const date = new Date(v.createdAt);
-      const year = date.getFullYear();
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      archives.add(`${year}-${month}`);
+    // 排序
+    const sortedArchives = {};
+    Object.keys(archives).sort((a, b) => b - a).forEach(year => {
+      sortedArchives[year] = archives[year].sort((a, b) => b - a);
     });
-    return Array.from(archives).sort().reverse();
+
+    return sortedArchives;
   }
 };
 
-// ========== 网站配置操作 ==========
+// 网站配置操作
 const configDb = {
   getConfig() {
-    return db.data.siteConfig[0] || defaultData.siteConfig[0];
+    return db.data.siteConfig;
   },
 
   updateConfig(updates) {
-    if (db.data.siteConfig[0]) {
-      Object.assign(db.data.siteConfig[0], updates);
-    } else {
-      db.data.siteConfig[0] = { id: 'site', ...updates };
-    }
-    db.write();
-    return db.data.siteConfig[0];
+    db.data.siteConfig = { ...db.data.siteConfig, ...updates };
+    db.saveData();
+    return db.data.siteConfig;
   }
 };
 
-// ========== JWT 操作 ==========
+// JWT 工具
 const jwtUtil = {
   generateToken(user) {
     return jwt.sign(
@@ -282,4 +272,22 @@ const jwtUtil = {
   }
 };
 
-module.exports = { db, userDb, videoDb, configDb, jwtUtil, JWT_SECRET };
+// 初始化管理员账号
+const adminExists = db.data.users.find(u => u.username === 'dakerclaw');
+if (!adminExists) {
+  const salt = bcrypt.genSaltSync(10);
+  const passwordHash = bcrypt.hashSync('daker123', salt);
+  db.data.users.push({
+    id: uuidv4(),
+    username: 'dakerclaw',
+    password: passwordHash,
+    contact: '',
+    isAdmin: true,
+    isDisabled: false,
+    createdAt: new Date().toISOString()
+  });
+  db.saveData();
+  console.log('✅ 管理员账号已创建: dakerclaw / daker123');
+}
+
+module.exports = { userDb, videoDb, configDb, jwtUtil };
