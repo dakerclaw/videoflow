@@ -268,11 +268,13 @@
     }
 
     // ========== 编辑和删除 ==========
+    let editModal = null; // 存储编辑对话框的引用
+    
     function editVideo() {
       // 显示编辑模态框
-      const modal = document.createElement('div');
-      modal.className = 'modal-overlay';
-      modal.innerHTML = `
+      editModal = document.createElement('div');
+      editModal.className = 'modal-overlay';
+      editModal.innerHTML = `
         <div class="modal">
           <h2>编辑视频信息</h2>
           <div class="form-group">
@@ -292,12 +294,19 @@
             <input type="password" class="form-input" id="editPassword" placeholder="输入新密码或留空">
           </div>
           <div class="modal-actions">
-            <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">取消</button>
+            <button class="btn btn-outline" onclick="closeEditModal()">取消</button>
             <button class="btn btn-primary" onclick="saveVideoEdit()">保存</button>
           </div>
         </div>
       `;
-      document.body.appendChild(modal);
+      document.body.appendChild(editModal);
+    }
+
+    function closeEditModal() {
+      if (editModal) {
+        editModal.remove();
+        editModal = null;
+      }
     }
 
     async function saveVideoEdit() {
@@ -325,7 +334,7 @@
         const data = await res.json();
         if (res.ok) {
           showToast('更新成功', 'success');
-          document.querySelector('.modal-overlay').remove();
+          closeEditModal();
           loadVideo();
         } else {
           showToast(data.error, 'error');
