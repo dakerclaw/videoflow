@@ -119,8 +119,8 @@ function renderVideos(videos) {
         </div>
       ` : ''}
       <div class="video-thumbnail">
-        <img src="${video.thumbnail || '/uploads/thumbnails/default.svg'}" alt="${video.title}"
-             onerror="this.src='/uploads/thumbnails/default.svg'">
+        <img src="${video.thumbnail || '/default-thumbnail.jpg'}" alt="${video.title}"
+             onerror="this.onerror=null; this.src='/default-thumbnail.jpg';">
         ${video.hasPassword ? '<div class="video-lock">🔒</div>' : ''}
       </div>
       <div class="video-info">

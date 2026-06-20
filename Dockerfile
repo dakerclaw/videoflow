@@ -1,6 +1,9 @@
 # 使用 Node.js 18 Alpine 作为基础镜像（轻量级）
 FROM node:18-alpine
 
+# 安装 ffmpeg（用于生成视频缩略图）
+RUN apk add --no-cache ffmpeg
+
 # 设置工作目录
 WORKDIR /app
 

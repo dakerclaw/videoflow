@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
+const { execSync } = require('child_process');
 const { userDb, videoDb, configDb, jwtUtil } = require('./db/database');
 const { authMiddleware, adminMiddleware } = require('./middleware/auth');
 
@@ -165,23 +166,57 @@ app.post('/api/videos/upload', authMiddleware, upload.array('videos', 10), (req,
   }
 });
 
-// 生成视频缩略图（简化版）
+// 生成视频缩略图（使用 ffmpeg，同步方式）
 function generateThumbnail(videoPath, outputPath) {
   try {
-    // 由于无法使用 ffmpeg，创建一个默认缩略图
-    // 在实际应用中，这里应该使用 ffmpeg 提取视频帧
-    const defaultThumb = path.join(__dirname, 'public/default-thumbnail.svg');
-    if (!fs.existsSync(outputPath)) {
-      // 创建一个简单的 SVG 作为默认缩略图
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180">
-        <rect width="320" height="180" fill="#1a1a2e"/>
-        <polygon points="130,60 130,120 180,90" fill="#fff"/>
-        <text x="160" y="155" font-family="Arial" font-size="12" fill="#aaa" text-anchor="middle">VIDEO</text>
-      </svg>`;
-      fs.writeFileSync(outputPath.replace('.jpg', '.svg'), svg);
+    // 检查输出文件是否已存在
+    if (fs.existsSync(outputPath)) {
+      console.log('✅ 缩略图已存在:', outputPath);
+      return true;
+    }
+
+    console.log('🎬 正在生成缩略图:', videoPath);
+
+    // 使用 ffmpeg 提取视频第1秒的帧作为缩略图（同步执行）
+    const ffmpegCmd = `ffmpeg -i "${videoPath}" -ss 00:00:01 -vframes 1 -q:v 2 -y "${outputPath}" 2>&1`;
+
+    try {
+      execSync(ffmpegCmd, { stdio: 'pipe', timeout: 30000 });
+
+      if (fs.existsSync(outputPath)) {
+        console.log('✅ 缩略图生成成功:', outputPath);
+        return true;
+      } else {
+        console.error('❌ ffmpeg 执行成功但输出文件不存在:', outputPath);
+        return createDefaultThumbnail(outputPath);
+      }
+    } catch (ffmpegError) {
+      console.error('❌ ffmpeg 失败:', ffmpegError.message);
+      return createDefaultThumbnail(outputPath);
+    }
+
+  } catch (e) {
+    console.error('生成缩略图异常:', e);
+    return createDefaultThumbnail(outputPath);
+  }
+}
+
+// 创建默认缩略图
+function createDefaultThumbnail(outputPath) {
+  try {
+    const defaultJpg = path.join(__dirname, 'public/default-thumbnail.jpg');
+
+    if (fs.existsSync(defaultJpg)) {
+      fs.copyFileSync(defaultJpg, outputPath);
+      console.log('✅ 已使用默认缩略图:', outputPath);
+      return true;
+    } else {
+      console.log('⚠️ 默认缩略图不存在:', defaultJpg);
+      return false;
     }
   } catch (e) {
-    console.error('生成缩略图失败:', e);
+    console.error('创建默认缩略图失败:', e);
+    return false;
   }
 }
 
