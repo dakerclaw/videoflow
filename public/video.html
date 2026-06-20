@@ -62,10 +62,18 @@
   <script>
     let currentVideo = null;
     let currentUser = null;
+    let verifiedVideos = new Set(); // 存储已验证密码的视频 ID
 
-    document.addEventListener('DOMContentLoaded', async () => {
-      await checkLoginStatus();
-      await loadVideo();
+    // 页面加载时，从 sessionStorage 恢复已验证的视频
+    document.addEventListener('DOMContentLoaded', () => {
+      const saved = sessionStorage.getItem('verifiedVideos');
+      if (saved) {
+        verifiedVideos = new Set(JSON.parse(saved));
+      }
+
+      checkLoginStatus().then(() => {
+        loadVideo();
+      });
     });
 
     async function checkLoginStatus() {
@@ -120,7 +128,14 @@
 
         // 检查密码
         if (currentVideo.hasPassword) {
-          showPasswordModal();
+          // 检查是否已经验证过密码（当前会话）
+          if (verifiedVideos.has(currentVideo.id)) {
+            // 已经验证过，直接播放
+            playVideo();
+          } else {
+            // 需要输入密码
+            showPasswordModal();
+          }
           return;
         }
 
@@ -148,6 +163,10 @@
 
         const data = await res.json();
         if (data.verified) {
+          // 记录已验证的视频 ID（当前会话）
+          verifiedVideos.add(currentVideo.id);
+          sessionStorage.setItem('verifiedVideos', JSON.stringify(Array.from(verifiedVideos)));
+
           document.getElementById('passwordModal').style.display = 'none';
           playVideo();
         } else {
