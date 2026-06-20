@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理后台 - Videoflow</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="navbar-brand">
+      <div class="logo">V</div>
+      <span>Videoflow 管理后台</span>
+    </a>
+    <div class="navbar-links">
+      <button class="btn btn-outline btn-sm" onclick="window.location.href='/'">返回首页</button>
+      <button class="btn btn-outline btn-sm" onclick="logout()">退出</button>
+    </div>
+  </nav>
+
+  <div class="admin-layout">
+    <!-- 侧边栏 -->
+    <div class="admin-sidebar">
+      <h3>⚙️ 管理菜单</h3>
+      <ul class="admin-menu">
+        <li><a href="#" class="active" onclick="showTab('config')">网站配置</a></li>
+        <li><a href="#" onclick="showTab('users')">用户管理</a></li>
+        <li><a href="#" onclick="showTab('videos')">视频管理</a></li>
+      </ul>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="admin-content">
+      <!-- 网站配置 -->
+      <div id="tab-config">
+        <h2 style="margin-bottom: 2rem;">网站配置</h2>
+        <div style="max-width: 600px;">
+          <div class="form-group">
+            <label class="form-label">网站标题</label>
+            <input type="text" class="form-input" id="configTitle" placeholder="Videoflow">
+          </div>
+          <div class="form-group">
+            <label class="form-label">网站名称</label>
+            <input type="text" class="form-input" id="configName" placeholder="Videoflow">
+          </div>
+          <div class="form-group">
+            <label class="form-label">网站简介</label>
+            <textarea class="form-input" id="configDescription" rows="3" placeholder="分享精彩视频瞬间"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">版权信息</label>
+            <input type="text" class="form-input" id="configCopyright" placeholder="© 2024 Videoflow. All rights reserved.">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Logo URL</label>
+            <input type="text" class="form-input" id="configLogo" placeholder="https://...">
+            <div class="form-hint">输入Logo图片的URL地址</div>
+          </div>
+          <button class="btn btn-primary" onclick="saveConfig()">保存配置</button>
+        </div>
+      </div>
+
+      <!-- 用户管理 -->
+      <div id="tab-users" style="display: none;">
+        <h2 style="margin-bottom: 2rem;">用户管理</h2>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>用户名</th>
+              <th>联系方式</th>
+              <th>状态</th>
+              <th>注册时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="userTableBody">
+            <tr>
+              <td colspan="5" style="text-align: center; padding: 2rem;">加载中...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 视频管理 -->
+      <div id="tab-videos" style="display: none;">
+        <h2 style="margin-bottom: 2rem;">视频管理</h2>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>标题</th>
+              <th>上传用户</th>
+              <th>播放次数</th>
+              <th>上传时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="videoTableBody">
+            <tr>
+              <td colspan="5" style="text-align: center; padding: 2rem;">加载中...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await checkAdminAuth();
+      await loadConfig();
+    });
+
+    async function checkAdminAuth() {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showToast('请先登录', 'error');
+        setTimeout(() => window.location.href = '/login.html', 1000);
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('认证失败');
+        
+        currentUser = await res.json();
+        if (!currentUser.isAdmin) {
+          showToast('需要管理员权限', 'error');
+          setTimeout(() => window.location.href = '/', 1000);
+        }
+      } catch (e) {
+        showToast('认证失败，请重新登录', 'error');
+        setTimeout(() => window.location.href = '/login.html', 1000);
+      }
+    }
+
+    // ========== 标签页切换 ==========
+    function showTab(tab) {
+      // 更新菜单样式
+      document.querySelectorAll('.admin-menu a').forEach(a => a.classList.remove('active'));
+      event.target.classList.add('active');
+
+      // 显示对应标签
+      document.getElementById('tab-config').style.display = tab === 'config' ? 'block' : 'none';
+      document.getElementById('tab-users').style.display = tab === 'users' ? 'block' : 'none';
+      document.getElementById('tab-videos').style.display = tab === 'videos' ? 'block' : 'none';
+
+      // 加载数据
+      if (tab === 'users') loadUsers();
+      if (tab === 'videos') loadVideos();
+    }
+
+    // ========== 网站配置 ==========
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config');
+        const config = await res.json();
+        document.getElementById('configTitle').value = config.title || '';
+        document.getElementById('configName').value = config.name || '';
+        document.getElementById('configDescription').value = config.description || '';
+        document.getElementById('configCopyright').value = config.copyright || '';
+        document.getElementById('configLogo').value = config.logo || '';
+      } catch (e) {
+        showToast('加载配置失败', 'error');
+      }
+    }
+
+    async function saveConfig() {
+      const token = localStorage.getItem('token');
+      const updates = {
+        title: document.getElementById('configTitle').value,
+        name: document.getElementById('configName').value,
+        description: document.getElementById('configDescription').value,
+        copyright: document.getElementById('configCopyright').value,
+        logo: document.getElementById('configLogo').value
+      };
+
+      try {
+        const res = await fetch('/api/admin/config', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(updates)
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          showToast('配置保存成功', 'success');
+          document.title = updates.title + ' - 管理后台';
+        } else {
+          showToast(data.error, 'error');
+        }
+      } catch (e) {
+        showToast('保存失败', 'error');
+      }
+    }
+
+    // ========== 用户管理 ==========
+    async function loadUsers() {
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch('/api/admin/users', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const users = await res.json();
+        renderUserTable(users);
+      } catch (e) {
+        showToast('加载用户列表失败', 'error');
+      }
+    }
+
+    function renderUserTable(users) {
+      const tbody = document.getElementById('userTableBody');
+      tbody.innerHTML = users.map(user => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(user.username)}</strong>
+            ${user.isAdmin ? '<span style="color: var(--primary); font-size: 0.8rem;"> (管理员)</span>' : ''}
+          </td>
+          <td>${user.contact || '-'}</td>
+          <td>
+            ${user.isDisabled ? 
+              '<span style="color: var(--danger);">已禁用</span>' : 
+              '<span style="color: var(--success);">正常</span>'}
+          </td>
+          <td>${formatDate(user.createdAt)}</td>
+          <td>
+            <button class="btn btn-sm ${user.isDisabled ? 'btn-primary' : 'btn-outline'}" 
+                    onclick="toggleUserDisable('${user.id}', ${user.isDisabled})">
+              ${user.isDisabled ? '启用' : '禁用'}
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="deleteUser('${user.id}', '${escapeHtml(user.username)}')">
+              删除
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function toggleUserDisable(userId, isDisabled) {
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(`/api/admin/users/${userId}/toggle-disable`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+          showToast('操作成功', 'success');
+          loadUsers();
+        } else {
+          const data = await res.json();
+          showToast(data.error, 'error');
+        }
+      } catch (e) {
+        showToast('操作失败', 'error');
+      }
+    }
+
+    async function deleteUser(userId, username) {
+      if (!confirm(`确定要删除用户「${username}」吗？\n该用户的所有视频也将被删除！`)) return;
+
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(`/api/admin/users/${userId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+          showToast('用户已删除', 'success');
+          loadUsers();
+        } else {
+          const data = await res.json();
+          showToast(data.error, 'error');
+        }
+      } catch (e) {
+        showToast('删除失败', 'error');
+      }
+    }
+
+    // ========== 视频管理 ==========
+    async function loadVideos() {
+      try {
+        const res = await fetch('/api/videos');
+        const videos = await res.json();
+        renderVideoTable(videos);
+      } catch (e) {
+        showToast('加载视频列表失败', 'error');
+      }
+    }
+
+    function renderVideoTable(videos) {
+      const tbody = document.getElementById('videoTableBody');
+      tbody.innerHTML = videos.map(video => `
+        <tr>
+          <td>
+            <strong>${escapeHtml(video.title)}</strong>
+            ${video.hasPassword ? ' 🔒' : ''}
+          </td>
+          <td>@${escapeHtml(video.username)}</td>
+          <td>${video.views || 0}</td>
+          <td>${formatDate(video.createdAt)}</td>
+          <td>
+            <button class="btn btn-sm btn-outline" onclick="window.open('/video.html?id=${video.id}', '_blank')">查看</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteVideo('${video.id}', '${escapeHtml(video.title)}')">删除</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function deleteVideo(videoId, title) {
+      if (!confirm(`确定要删除视频「${title}」吗？`)) return;
+
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(`/api/videos/${videoId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+          showToast('视频已删除', 'success');
+          loadVideos();
+        } else {
+          const data = await res.json();
+          showToast(data.error, 'error');
+        }
+      } catch (e) {
+        showToast('删除失败', 'error');
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login.html';
+    }
+
+    // ========== 工具函数 ==========
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function formatDate(dateStr) {
+      const date = new Date(dateStr);
+      return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+    }
+
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+  </script>
+</body>
+</html>

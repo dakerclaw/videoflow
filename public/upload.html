@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>上传视频 - Videoflow</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="navbar-brand">
+      <div class="logo">V</div>
+      <span>Videoflow</span>
+    </a>
+    <div class="navbar-links">
+      <button class="btn btn-outline btn-sm" onclick="window.location.href='/'">返回首页</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1 style="margin-bottom: 2rem;">📤 上传视频</h1>
+
+    <!-- 上传区域 -->
+    <div class="upload-area" id="uploadArea">
+      <div class="upload-icon">📁</div>
+      <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">点击或拖拽视频到此处</p>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">支持 MP4, AVI, MOV, WMV, FLV, MKV, WEBM 格式</p>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">支持同时上传多个视频</p>
+      <input type="file" id="fileInput" multiple accept="video/*" style="display: none;">
+    </div>
+
+    <!-- 已选文件列表 -->
+    <div id="fileList" style="display: none; margin-bottom: 2rem;">
+      <h3 style="margin-bottom: 1rem;">已选择 <span id="fileCount">0</span> 个文件</h3>
+      <div id="fileItems"></div>
+    </div>
+
+    <!-- 视频信息表单 -->
+    <div id="uploadForm" style="display: none;">
+      <div class="form-group">
+        <label class="form-label">标题 <span style="color: var(--danger);">*</span></label>
+        <input type="text" class="form-input" id="videoTitle" placeholder="请输入视频标题">
+        <div class="form-hint">多个视频上传时，将在标题后自动添加序号</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">标签 <span style="color: var(--text-muted);">(选填，逗号分隔)</span></label>
+        <input type="text" class="form-input" id="videoTags" placeholder="例如：旅行,风景,生活">
+      </div>
+      <div class="form-group">
+        <label class="form-label">描述 <span style="color: var(--text-muted);">(选填)</span></label>
+        <textarea class="form-input" id="videoDescription" rows="4" placeholder="描述一下这个视频..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">视频密码 <span style="color: var(--text-muted);">(选填，设置后需要密码才能观看)</span></label>
+        <input type="password" class="form-input" id="videoPassword" placeholder="留空则表示无需密码">
+        <div class="form-hint">设置密码后，观众需要输入密码才能观看视频</div>
+      </div>
+
+      <div class="upload-progress" id="progressArea" style="display: none;">
+        <div style="margin-bottom: 0.5rem;">
+          <span id="progressText">上传中...</span>
+          <span id="progressPercent" style="float: right;">0%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-lg" id="uploadBtn" onclick="startUpload()">开始上传</button>
+    </div>
+  </div>
+
+  <script>
+    let selectedFiles = [];
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+
+    // 点击上传区域
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    // 文件选择
+    fileInput.addEventListener('change', (e) => {
+      handleFiles(e.target.files);
+    });
+
+    // 拖拽上传
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+
+    function handleFiles(files) {
+      if (files.length === 0) return;
+
+      selectedFiles = Array.from(files);
+      showFileList();
+      document.getElementById('uploadForm').style.display = 'block';
+    }
+
+    function showFileList() {
+      document.getElementById('fileList').style.display = 'block';
+      document.getElementById('fileCount').textContent = selectedFiles.length;
+
+      const fileItems = document.getElementById('fileItems');
+      fileItems.innerHTML = selectedFiles.map((file, index) => `
+        <div style="display: flex; align-items: center; gap: 1rem; padding: 0.8rem; background: var(--bg-card); border-radius: 8px; margin-bottom: 0.5rem;">
+          <span style="color: var(--primary); font-weight: 500;">${index + 1}</span>
+          <span style="flex: 1;">${file.name}</span>
+          <span style="color: var(--text-muted); font-size: 0.85rem;">${formatFileSize(file.size)}</span>
+          <button onclick="removeFile(${index})" style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 1.2rem;">×</button>
+        </div>
+      `).join('');
+    }
+
+    function removeFile(index) {
+      selectedFiles.splice(index, 1);
+      if (selectedFiles.length === 0) {
+        document.getElementById('fileList').style.display = 'none';
+        document.getElementById('uploadForm').style.display = 'none';
+      } else {
+        showFileList();
+      }
+    }
+
+    async function startUpload() {
+      const title = document.getElementById('videoTitle').value.trim();
+      if (!title) {
+        showToast('请输入视频标题', 'error');
+        return;
+      }
+
+      const formData = new FormData();
+      selectedFiles.forEach(file => {
+        formData.append('videos', file);
+      });
+      formData.append('title', title);
+      formData.append('tags', document.getElementById('videoTags').value.trim());
+      formData.append('description', document.getElementById('videoDescription').value.trim());
+      formData.append('password', document.getElementById('videoPassword').value);
+
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showToast('请先登录', 'error');
+        setTimeout(() => window.location.href = '/login.html', 1000);
+        return;
+      }
+
+      // 显示进度
+      document.getElementById('progressArea').style.display = 'block';
+      document.getElementById('uploadBtn').disabled = true;
+
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/videos/upload');
+
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('progressPercent').textContent = percent + '%';
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200) {
+            const data = JSON.parse(xhr.responseText);
+            showToast(`成功上传 ${data.videos.length} 个视频`, 'success');
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 1000);
+          } else {
+            const error = JSON.parse(xhr.responseText);
+            showToast(error.error || '上传失败', 'error');
+            document.getElementById('uploadBtn').disabled = false;
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          showToast('上传失败，请重试', 'error');
+          document.getElementById('uploadBtn').disabled = false;
+        });
+
+        xhr.send(formData);
+      } catch (e) {
+        showToast('上传失败', 'error');
+        document.getElementById('uploadBtn').disabled = false;
+      }
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+      return (bytes / 1024 / 1024 / 1024).toFixed(1) + ' GB';
+    }
+
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // 检查登录状态
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        showToast('请先登录', 'error');
+        setTimeout(() => window.location.href = '/login.html', 1000);
+      }
+    });
+  </script>
+</body>
+</html>

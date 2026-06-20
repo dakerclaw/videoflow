@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Videoflow - 视频分享网站</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- 导航栏 -->
+  <nav class="navbar">
+    <a href="/" class="navbar-brand">
+      <div class="logo">V</div>
+      <span id="siteName">Videoflow</span>
+    </a>
+    <div class="navbar-links" id="navLinks">
+      <!-- 动态生成 -->
+    </div>
+  </nav>
+
+  <!-- 主内容 -->
+  <div class="container">
+    <!-- 搜索栏 -->
+    <div class="search-bar">
+      <input type="text" class="search-input" id="searchInput" placeholder="搜索视频标题、标签、上传用户...">
+      <button class="btn btn-primary" onclick="searchVideos()">搜索</button>
+    </div>
+
+    <!-- 筛选栏 -->
+    <div class="filter-bar">
+      <select class="filter-select" id="yearFilter" onchange="filterVideos()">
+        <option value="">所有年份</option>
+      </select>
+      <select class="filter-select" id="monthFilter" onchange="filterVideos()">
+        <option value="">所有月份</option>
+        <option value="1">1月</option>
+        <option value="2">2月</option>
+        <option value="3">3月</option>
+        <option value="4">4月</option>
+        <option value="5">5月</option>
+        <option value="6">6月</option>
+        <option value="7">7月</option>
+        <option value="8">8月</option>
+        <option value="9">9月</option>
+        <option value="10">10月</option>
+        <option value="11">11月</option>
+        <option value="12">12月</option>
+      </select>
+      <div id="selectActions" style="display: none; gap: 0.5rem; margin-left: auto;">
+        <button class="btn btn-outline btn-sm" onclick="toggleSelectAll()">全选</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteSelected()">删除选中</button>
+      </div>
+    </div>
+
+    <!-- 视频瀑布流 -->
+    <div class="waterfall" id="videoList">
+      <div class="loading">
+        <div class="spinner"></div>
+      </div>
+    </div>
+
+    <!-- 空状态 -->
+    <div class="empty-state" id="emptyState" style="display: none;">
+      <div class="icon">🎬</div>
+      <p>暂无视频，快来上传吧！</p>
+    </div>
+  </div>
+
+  <!-- 密码验证模态框 -->
+  <div class="modal-overlay" id="passwordModal" style="display: none;">
+    <div class="modal">
+      <h2>🔒 视频需要密码</h2>
+      <p id="passwordVideoTitle" style="margin-bottom: 1rem; color: var(--text-muted);"></p>
+      <div class="form-group">
+        <input type="password" class="form-input" id="videoPassword" placeholder="请输入视频密码">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closePasswordModal()">取消</button>
+        <button class="btn btn-primary" onclick="verifyPassword()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>

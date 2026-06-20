@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>观看视频 - Videoflow</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="/" class="navbar-brand">
+      <div class="logo">V</div>
+      <span>Videoflow</span>
+    </a>
+    <div class="navbar-links" id="navLinks"></div>
+  </nav>
+
+  <div class="video-player-container">
+    <!-- 视频播放器 -->
+    <div class="video-player">
+      <video id="videoPlayer" controls>
+        您的浏览器不支持视频播放
+      </video>
+    </div>
+
+    <!-- 视频信息 -->
+    <div id="videoInfo">
+      <div class="loading">
+        <div class="spinner"></div>
+      </div>
+    </div>
+
+    <!-- 分享区域 -->
+    <div id="shareArea" style="display: none;">
+      <h3 style="margin-bottom: 1rem;">分享视频</h3>
+      <div class="share-buttons">
+        <button class="share-btn" onclick="copyShareLink()">📋 复制链接</button>
+        <button class="share-btn" onclick="shareToWeChat()">💬 分享到微信</button>
+        <button class="share-btn" onclick="shareToWeibo()">🔴 分享到微博</button>
+      </div>
+      <div class="form-group" style="margin-top: 1rem;">
+        <input type="text" class="form-input" id="shareLink" readonly>
+      </div>
+    </div>
+  </div>
+
+  <!-- 密码验证模态框 -->
+  <div class="modal-overlay" id="passwordModal" style="display: none;">
+    <div class="modal">
+      <h2>🔒 此视频需要密码</h2>
+      <p id="passwordHint" style="margin-bottom: 1rem; color: var(--text-muted);"></p>
+      <div class="form-group">
+        <input type="password" class="form-input" id="videoPassword" placeholder="请输入视频密码">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="goBack()">返回</button>
+        <button class="btn btn-primary" onclick="verifyAndPlay()">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentVideo = null;
+    let currentUser = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await checkLoginStatus();
+      await loadVideo();
+    });
+
+    async function checkLoginStatus() {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const res = await fetch('/api/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            currentUser = await res.json();
+          }
+        } catch (e) {}
+      }
+      renderNav();
+    }
+
+    function renderNav() {
+      const navLinks = document.getElementById('navLinks');
+      if (currentUser) {
+        navLinks.innerHTML = `
+          <a href="/upload.html" class="btn btn-primary btn-sm">上传视频</a>
+          <button class="btn btn-outline btn-sm" onclick="logout()">退出</button>
+        `;
+      } else {
+        navLinks.innerHTML = `
+          <a href="/login.html">登录</a>
+        `;
+      }
+    }
+
+    async function loadVideo() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const videoId = urlParams.get('id');
+
+      if (!videoId) {
+        showToast('视频ID不存在', 'error');
+        setTimeout(() => window.location.href = '/', 1000);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/videos/${videoId}`);
+        if (!res.ok) {
+          showToast('视频不存在', 'error');
+          setTimeout(() => window.location.href = '/', 1000);
+          return;
+        }
+
+        currentVideo = await res.json();
+        document.title = `${currentVideo.title} - Videoflow`;
+
+        // 检查密码
+        if (currentVideo.hasPassword) {
+          showPasswordModal();
+          return;
+        }
+
+        playVideo();
+      } catch (e) {
+        showToast('加载视频失败', 'error');
+      }
+    }
+
+    function showPasswordModal() {
+      document.getElementById('passwordModal').style.display = 'flex';
+      document.getElementById('passwordHint').textContent = `视频「${currentVideo.title}」已加密，请输入密码观看`;
+      document.getElementById('videoPassword').focus();
+    }
+
+    async function verifyAndPlay() {
+      const password = document.getElementById('videoPassword').value;
+
+      try {
+        const res = await fetch(`/api/videos/${currentVideo.id}/verify-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+
+        const data = await res.json();
+        if (data.verified) {
+          document.getElementById('passwordModal').style.display = 'none';
+          playVideo();
+        } else {
+          showToast('密码错误', 'error');
+        }
+      } catch (e) {
+        showToast('验证失败', 'error');
+      }
+    }
+
+    function playVideo() {
+      const video = currentVideo;
+      const player = document.getElementById('videoPlayer');
+      player.src = video.filePath;
+      player.load();
+
+      // 显示视频信息
+      document.getElementById('videoInfo').innerHTML = `
+        <h1 style="margin-bottom: 1rem;">${escapeHtml(video.title)}</h1>
+        <div style="display: flex; gap: 2rem; margin-bottom: 1rem; color: var(--text-muted); font-size: 0.9rem;">
+          <span>@${escapeHtml(video.username)}</span>
+          <span>上传于 ${formatDate(video.createdAt)}</span>
+          <span>播放 ${video.views || 0} 次</span>
+          ${video.hasPassword ? '<span style="color: var(--warning);">🔒 已加密</span>' : ''}
+        </div>
+        ${video.tags ? `
+          <div class="video-tags" style="margin-bottom: 1rem;">
+            ${video.tags.split(',').map(tag => `<span class="tag">${escapeHtml(tag.trim())}</span>`).join('')}
+          </div>
+        ` : ''}
+        ${video.description ? `
+          <div style="color: var(--text-muted); line-height: 1.8;">${escapeHtml(video.description).replace(/\n/g, '<br>')}</div>
+        ` : ''}
+        <div class="video-actions">
+          ${isOwner() ? `
+            <button class="btn btn-outline btn-sm" onclick="editVideo()">✏️ 编辑</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteVideo()">🗑️ 删除</button>
+          ` : ''}
+        </div>
+      `;
+
+      // 显示分享区域
+      document.getElementById('shareArea').style.display = 'block';
+      document.getElementById('shareLink').value = window.location.href;
+    }
+
+    function isOwner() {
+      return currentUser && currentUser.id === currentVideo.userId;
+    }
+
+    // ========== 分享功能 ==========
+    function copyShareLink() {
+      const link = document.getElementById('shareLink');
+      link.select();
+      document.execCommand('copy');
+      showToast('链接已复制到剪贴板', 'success');
+    }
+
+    function shareToWeChat() {
+      // 微信分享需要生成二维码，这里使用简单方法：复制链接提示用户
+      showToast('请复制链接后在微信中分享', 'info');
+      copyShareLink();
+    }
+
+    function shareToWeibo() {
+      const url = encodeURIComponent(window.location.href);
+      const title = encodeURIComponent(currentVideo.title);
+      const shareUrl = `https://service.weibo.com/share/share.php?url=${url}&title=${title}`;
+      window.open(shareUrl, '_blank');
+    }
+
+    // ========== 编辑和删除 ==========
+    function editVideo() {
+      // 显示编辑模态框
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="modal">
+          <h2>编辑视频信息</h2>
+          <div class="form-group">
+            <label class="form-label">标题</label>
+            <input type="text" class="form-input" id="editTitle" value="${escapeHtml(currentVideo.title)}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">标签</label>
+            <input type="text" class="form-input" id="editTags" value="${escapeHtml(currentVideo.tags || '')}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">描述</label>
+            <textarea class="form-input" id="editDescription" rows="4">${escapeHtml(currentVideo.description || '')}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">密码（留空则取消密码保护）</label>
+            <input type="password" class="form-input" id="editPassword" placeholder="输入新密码或留空">
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-outline" onclick="this.closest('.modal-overlay').remove()">取消</button>
+            <button class="btn btn-primary" onclick="saveVideoEdit()">保存</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    async function saveVideoEdit() {
+      const title = document.getElementById('editTitle').value.trim();
+      const tags = document.getElementById('editTags').value.trim();
+      const description = document.getElementById('editDescription').value.trim();
+      const password = document.getElementById('editPassword').value;
+
+      if (!title) {
+        showToast('标题不能为空', 'error');
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(`/api/videos/${currentVideo.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ title, tags, description, password })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          showToast('更新成功', 'success');
+          document.querySelector('.modal-overlay').remove();
+          loadVideo();
+        } else {
+          showToast(data.error, 'error');
+        }
+      } catch (e) {
+        showToast('更新失败', 'error');
+      }
+    }
+
+    async function deleteVideo() {
+      if (!confirm('确定要删除这个视频吗？')) return;
+
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(`/api/videos/${currentVideo.id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+          showToast('删除成功', 'success');
+          setTimeout(() => window.location.href = '/', 500);
+        } else {
+          const data = await res.json();
+          showToast(data.error, 'error');
+        }
+      } catch (e) {
+        showToast('删除失败', 'error');
+      }
+    }
+
+    function goBack() {
+      window.location.href = '/';
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/';
+    }
+
+    // ========== 工具函数 ==========
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function formatDate(dateStr) {
+      const date = new Date(dateStr);
+      return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+    }
+
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // 密码框回车
+    document.getElementById('videoPassword')?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') verifyAndPlay();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  videoflow:
+    build: .
+    container_name: videoflow
+    restart: unless-stopped
+    ports:
+      - "3291:3291"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    environment:
+      - NODE_ENV=production
+      - PORT=3291
+      - JWT_SECRET=videoflow_secret_key_2024
+    networks:
+      - videoflow-network
+
+networks:
+  videoflow-network:
+    driver: bridge

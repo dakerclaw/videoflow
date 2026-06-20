@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>注册 - Videoflow</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+      <h1>🎬 注册 Videoflow</h1>
+      <div class="form-group">
+        <label class="form-label">用户名 <span style="color: var(--danger);">*</span></label>
+        <input type="text" class="form-input" id="username" placeholder="请输入用户名">
+      </div>
+      <div class="form-group">
+        <label class="form-label">密码 <span style="color: var(--danger);">*</span></label>
+        <input type="password" class="form-input" id="password" placeholder="请输入密码">
+      </div>
+      <div class="form-group">
+        <label class="form-label">确认密码 <span style="color: var(--danger);">*</span></label>
+        <input type="password" class="form-input" id="confirmPassword" placeholder="请再次输入密码">
+      </div>
+      <div class="form-group">
+        <label class="form-label">联系方式 <span style="color: var(--text-muted);">(选填)</span></label>
+        <input type="text" class="form-input" id="contact" placeholder="手机号或邮箱">
+      </div>
+      <button class="btn btn-primary" onclick="register()">注册</button>
+      <div class="auth-link">
+        已有账号？<a href="/login.html">立即登录</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function register() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+      const contact = document.getElementById('contact').value.trim();
+
+      // 验证
+      if (!username) {
+        showToast('请输入用户名', 'error');
+        return;
+      }
+      if (!password) {
+        showToast('请输入密码', 'error');
+        return;
+      }
+      if (password !== confirmPassword) {
+        showToast('两次输入的密码不一致', 'error');
+        return;
+      }
+      if (password.length < 6) {
+        showToast('密码长度至少6位', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, contact })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('user', JSON.stringify(data.user));
+          showToast('注册成功', 'success');
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 500);
+        } else {
+          showToast(data.error, 'error');
+        }
+      } catch (e) {
+        showToast('注册失败，请重试', 'error');
+      }
+    }
+
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // 回车注册
+    document.getElementById('confirmPassword').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') register();
+    });
+  </script>
+</body>
+</html>
