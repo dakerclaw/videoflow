@@ -173,6 +173,18 @@ async function verifyPassword() {
 
     const data = await res.json();
     if (data.verified) {
+      // 将已验证的视频 ID 存储到 sessionStorage（避免重复输入密码）
+      let verifiedVideos = [];
+      try {
+        verifiedVideos = JSON.parse(sessionStorage.getItem('verifiedVideos') || '[]');
+      } catch (e) {
+        verifiedVideos = [];
+      }
+      if (!verifiedVideos.includes(videoId)) {
+        verifiedVideos.push(videoId);
+        sessionStorage.setItem('verifiedVideos', JSON.stringify(verifiedVideos));
+      }
+      
       window.location.href = `/video.html?id=${videoId}`;
     } else {
       showToast(data.error || '密码错误', 'error');
