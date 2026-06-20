@@ -72,6 +72,7 @@
 
   <script>
     let selectedFiles = [];
+    let videoThumbnails = []; // 存储视频缩略图（blob 对象）
     const uploadArea = document.getElementById('uploadArea');
     const fileInput = document.getElementById('fileInput');
 
@@ -99,12 +100,104 @@
       handleFiles(e.dataTransfer.files);
     });
 
-    function handleFiles(files) {
+    async function handleFiles(files) {
       if (files.length === 0) return;
 
       selectedFiles = Array.from(files);
+      videoThumbnails = []; // 清空旧缩略图
+
+      // 为每个视频生成缩略图
+      await generateThumbnails();
+
       showFileList();
       document.getElementById('uploadForm').style.display = 'block';
+    }
+
+    // 生成视频缩略图（浏览器端）
+    async function generateThumbnails() {
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        try {
+          const thumbnail = await extractVideoFrame(file);
+          videoThumbnails.push(thumbnail);
+        } catch (e) {
+          console.error('生成缩略图失败:', e);
+          // 如果失败，使用默认缩略图
+          videoThumbnails.push(null);
+        }
+      }
+
+      // 显示缩略图预览
+      showThumbnailPreview();
+    }
+
+    // 从视频提取第一帧
+    function extractVideoFrame(file) {
+      return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        video.preload = 'metadata';
+        video.muted = true;
+
+        video.onloadedmetadata = () => {
+          // 设置 canvas 尺寸（缩略图尺寸：320x180）
+          canvas.width = 320;
+          canvas.height = 180;
+
+          // 跳到第1秒（如果视频长度>1秒）
+          video.currentTime = Math.min(1, video.duration / 2);
+        };
+
+        video.onseeked = () => {
+          try {
+            // 绘制视频帧到 canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // 转换为 JPEG blob
+            canvas.toBlob((blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                reject(new Error('Canvas 转 Blob 失败'));
+              }
+            }, 'image/jpeg', 0.85); // 质量 0.85
+          } catch (e) {
+            reject(e);
+          }
+        };
+
+        video.onerror = (e) => {
+          reject(e);
+        };
+
+        // 创建视频 URL
+        video.src = URL.createObjectURL(file);
+      });
+    }
+
+    // 显示缩略图预览
+    function showThumbnailPreview() {
+      const previewDiv = document.getElementById('thumbnailPreview');
+      const listDiv = document.getElementById('thumbnailList');
+
+      if (videoThumbnails.length === 0) return;
+
+      previewDiv.style.display = 'block';
+      listDiv.innerHTML = videoThumbnails.map((thumb, index) => `
+        <div style="text-align:center;">
+          ${thumb ? `
+            <img src="${URL.createObjectURL(thumb)}" 
+                 style="width:160px; height:90px; object-fit:cover; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.3);">
+          ` : `
+            <div style="width:160px; height:90px; background:var(--bg-card); border-radius:8px; display:flex; align-items:center; justify-content:center;">
+              <span style="font-size:2rem;">🎬</span>
+            </div>
+          `}
+          <div style="margin-top:0.3rem; font-size:0.8rem; color:var(--text-muted);">视频 ${index + 1}</div>
+        </div>
+      `).join('');
     }
 
     function showFileList() {
@@ -136,8 +229,15 @@
       const title = document.getElementById('videoTitle').value.trim();
 
       const formData = new FormData();
-      selectedFiles.forEach(file => {
+      selectedFiles.forEach((file, index) => {
         formData.append('videos', file);
+
+        // 添加对应的缩略图（如果存在）
+        if (videoThumbnails[index]) {
+          // 将 blob 转换为 File 对象
+          const thumbFile = new File([videoThumbnails[index]], `thumb_${index}.jpg`, { type: 'image/jpeg' });
+          formData.append('thumbnails', thumbFile);
+        }
       });
       formData.append('title', title);
       formData.append('tags', document.getElementById('videoTags').value.trim());

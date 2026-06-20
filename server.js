@@ -3,7 +3,6 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
-const { execSync } = require('child_process');
 const { userDb, videoDb, configDb, jwtUtil } = require('./db/database');
 const { authMiddleware, adminMiddleware } = require('./middleware/auth');
 
@@ -41,10 +40,25 @@ const upload = multer({
   limits: { fileSize: 500 * 1024 * 1024 }, // 500MB
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    if (['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm'].includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('只支持视频文件格式'));
+
+    // 视频文件
+    if (file.fieldname === 'videos') {
+      if (['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm'].includes(ext)) {
+        cb(null, true);
+      } else {
+        cb(new Error('只支持视频文件格式'));
+      }
+    }
+    // 缩略图文件
+    else if (file.fieldname === 'thumbnails') {
+      if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+        cb(null, true);
+      } else {
+        cb(new Error('缩略图只支持 JPG/PNG/WEBP 格式'));
+      }
+    }
+    else {
+      cb(new Error('不支持的文件字段'));
     }
   }
 });
@@ -116,31 +130,32 @@ app.get('/api/me', authMiddleware, (req, res) => {
 // ==================== 视频路由 ====================
 
 // 上传视频（支持单个或多个）
-app.post('/api/videos/upload', authMiddleware, upload.array('videos', 10), (req, res) => {
+app.post('/api/videos/upload', authMiddleware, upload.fields([
+  { name: 'videos', maxCount: 10 },
+  { name: 'thumbnails', maxCount: 10 }
+]), (req, res) => {
   try {
     const { title, tags, description, password } = req.body;
-    const files = req.files;
+    const videoFiles = req.files['videos'] || [];
+    const thumbnailFiles = req.files['thumbnails'] || [];
 
-    if (!files || files.length === 0) {
+    if (!videoFiles || videoFiles.length === 0) {
       return res.status(400).json({ error: '请选择要上传的视频' });
     }
 
     const uploadedVideos = [];
 
-    files.forEach((file, index) => {
+    videoFiles.forEach((file, index) => {
       // 确定视频标题
       let videoTitle;
       if (Array.isArray(title)) {
-        // 每个视频有不同的标题
         videoTitle = title[index] && title[index].trim()
           ? title[index].trim()
           : path.parse(file.originalname).name;
       } else {
-        // 所有视频使用同一个标题（或留空）
         if (title && title.trim()) {
-          videoTitle = files.length > 1 ? `${title.trim()} (${index + 1})` : title.trim();
+          videoTitle = videoFiles.length > 1 ? `${title.trim()} (${index + 1})` : title.trim();
         } else {
-          // 未提供标题，使用文件名（不含扩展名）
           videoTitle = path.parse(file.originalname).name;
         }
       }
@@ -149,9 +164,19 @@ app.post('/api/videos/upload', authMiddleware, upload.array('videos', 10), (req,
       const videoDesc = Array.isArray(description) ? description[index] : (description || '');
       const videoPassword = Array.isArray(password) ? password[index] : (password || '');
 
-      // 生成缩略图路径
-      const thumbnailName = `${path.parse(file.filename).name}.jpg`;
-      const thumbnailPath = `/uploads/thumbnails/${thumbnailName}`;
+      // 确定缩略图路径
+      let thumbnailPath = '/default-thumbnail.jpg'; // 默认缩略图
+
+      // 如果有上传的缩略图，则使用它
+      if (thumbnailFiles[index]) {
+        const thumbFile = thumbnailFiles[index];
+        const thumbnailName = `${path.parse(file.filename).name}${path.extname(thumbFile.filename)}`;
+        const thumbDestPath = path.join(thumbnailsDir, thumbnailName);
+
+        // 移动缩略图到正确位置
+        fs.renameSync(thumbFile.path, thumbDestPath);
+        thumbnailPath = `/uploads/thumbnails/${thumbnailName}`;
+      }
 
       const video = videoDb.createVideo({
         userId: req.user.id,
@@ -170,9 +195,6 @@ app.post('/api/videos/upload', authMiddleware, upload.array('videos', 10), (req,
       });
 
       uploadedVideos.push(video);
-
-      // 异步生成缩略图（使用简单方法：复制一个默认缩略图）
-      generateThumbnail(file.path, path.join(__dirname, 'uploads/thumbnails', thumbnailName));
     });
 
     res.json({ message: '上传成功', videos: uploadedVideos });
@@ -180,60 +202,6 @@ app.post('/api/videos/upload', authMiddleware, upload.array('videos', 10), (req,
     res.status(500).json({ error: error.message });
   }
 });
-
-// 生成视频缩略图（使用 ffmpeg，同步方式）
-function generateThumbnail(videoPath, outputPath) {
-  try {
-    // 检查输出文件是否已存在
-    if (fs.existsSync(outputPath)) {
-      console.log('✅ 缩略图已存在:', outputPath);
-      return true;
-    }
-
-    console.log('🎬 正在生成缩略图:', videoPath);
-
-    // 使用 ffmpeg 提取视频第1秒的帧作为缩略图（同步执行）
-    const ffmpegCmd = `ffmpeg -i "${videoPath}" -ss 00:00:01 -vframes 1 -q:v 2 -y "${outputPath}" 2>&1`;
-
-    try {
-      execSync(ffmpegCmd, { stdio: 'pipe', timeout: 30000 });
-
-      if (fs.existsSync(outputPath)) {
-        console.log('✅ 缩略图生成成功:', outputPath);
-        return true;
-      } else {
-        console.error('❌ ffmpeg 执行成功但输出文件不存在:', outputPath);
-        return createDefaultThumbnail(outputPath);
-      }
-    } catch (ffmpegError) {
-      console.error('❌ ffmpeg 失败:', ffmpegError.message);
-      return createDefaultThumbnail(outputPath);
-    }
-
-  } catch (e) {
-    console.error('生成缩略图异常:', e);
-    return createDefaultThumbnail(outputPath);
-  }
-}
-
-// 创建默认缩略图
-function createDefaultThumbnail(outputPath) {
-  try {
-    const defaultJpg = path.join(__dirname, 'public/default-thumbnail.jpg');
-
-    if (fs.existsSync(defaultJpg)) {
-      fs.copyFileSync(defaultJpg, outputPath);
-      console.log('✅ 已使用默认缩略图:', outputPath);
-      return true;
-    } else {
-      console.log('⚠️ 默认缩略图不存在:', defaultJpg);
-      return false;
-    }
-  } catch (e) {
-    console.error('创建默认缩略图失败:', e);
-    return false;
-  }
-}
 
 // 获取视频列表
 app.get('/api/videos', (req, res) => {
