@@ -133,8 +133,9 @@ function renderVideos(videos) {
                  onclick="event.stopPropagation()">
         </div>
       ` : ''}
-      <div class="video-thumbnail">
+      <div class="video-thumbnail" id="thumb-${video.id}">
         <img src="${video.thumbnail || '/default-thumbnail.jpg'}" alt="${video.title}"
+             onload="fixThumbnailAspect(this, '${video.id}')"
              onerror="this.onerror=null; this.src='/default-thumbnail.jpg';">
         ${video.hasPassword ? '<div class="video-lock">🔒</div>' : ''}
       </div>
@@ -347,6 +348,21 @@ function formatDate(dateStr) {
   if (diff < 604800000) return `${Math.floor(diff / 86400000)}天前`;
   
   return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+// ========== 缩略图宽高比自适应 ==========
+function fixThumbnailAspect(img, videoId) {
+  const container = document.getElementById('thumb-' + videoId);
+  if (!container) return;
+  const w = img.naturalWidth;
+  const h = img.naturalHeight;
+  if (!w || !h) return;
+  // 设置容器的 aspect-ratio，让占位随图片比例变化
+  container.style.aspectRatio = w + '/' + h;
+  // 图片改为 cover 或直接使用 auto 尺寸，不再留黑边
+  img.style.width = '100%';
+  img.style.height = '100%';
+  img.style.objectFit = 'cover';
 }
 
 function showToast(message, type = 'info') {
