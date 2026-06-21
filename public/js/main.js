@@ -141,10 +141,7 @@ function renderVideos(videos) {
       </div>
       <div class="video-info">
         <div class="video-title">${escapeHtml(video.title)}</div>
-        <div class="video-meta">
-          <span>@${escapeHtml(video.username)}</span>
-          <span>${formatDate(video.createdAt)}</span>
-        </div>
+
         ${video.tags ? `
           <div class="video-tags">
             ${video.tags.split(',').map(tag => `<span class="tag">${escapeHtml(tag.trim())}</span>`).join('')}
