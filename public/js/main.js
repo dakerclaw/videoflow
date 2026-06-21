@@ -137,6 +137,7 @@ function renderVideos(videos) {
         <img src="${video.thumbnail || '/default-thumbnail.jpg'}" alt="${video.title}"
              onload="fixThumbnailAspect(this, '${video.id}')"
              onerror="this.onerror=null; this.src='/default-thumbnail.jpg';">
+        ${video.duration ? `<div class="video-duration">${formatDuration(video.duration)}</div>` : ''}
         ${video.hasPassword ? '<div class="video-lock">🔒</div>' : ''}
       </div>
       <div class="video-info">
@@ -338,6 +339,16 @@ async function loadArchiveList() {
 }
 
 // ========== 工具函数 ==========
+function formatDuration(seconds) {
+  if (!seconds || seconds <= 0) return '';
+  const s = Math.round(seconds);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  return `${m}:${String(sec).padStart(2,'0')}`;
+}
+
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;

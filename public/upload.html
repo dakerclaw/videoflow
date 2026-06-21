@@ -79,6 +79,7 @@
   <script>
     let selectedFiles = [];
     let videoThumbnails = []; // 存储视频缩略图（blob 对象）
+    let videoDurations = []; // 存储视频时长（秒）
     const uploadArea = document.getElementById('uploadArea');
     const fileInput = document.getElementById('fileInput');
 
@@ -121,13 +122,16 @@
 
     // 生成视频缩略图（浏览器端）
     async function generateThumbnails() {
+      videoDurations = []; // 清空旧时长
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i];
         try {
-          const thumbnail = await extractVideoFrame(file);
-          videoThumbnails.push(thumbnail);
+          const result = await extractVideoFrame(file);
+          videoThumbnails.push(result.thumbnail);
+          videoDurations.push(result.duration || 0);
         } catch (e) {
           console.error(`视频 ${i+1} 缩略图生成失败，使用默认缩略图:`, e);
+          videoDurations.push(0); // 未知时长
           // 加载默认缩略图作为 fallback
           try {
             const response = await fetch('/default-thumbnail.jpg');
@@ -176,14 +180,19 @@
           URL.revokeObjectURL(videoUrl);
         }
 
+        let videoDuration = 0; // 存储视频时长
+
         video.onloadedmetadata = () => {
+          // 捕获视频时长（秒）
+          videoDuration = Math.round(video.duration);
+
           // 根据视频实际比例设置 canvas 尺寸（保持原始比例）
           const videoRatio = video.videoWidth / video.videoHeight;
-          
+
           // 固定宽度为 320，根据视频比例计算高度
           canvas.width = 320;
           canvas.height = Math.round(320 / videoRatio);
-          
+
           // 限制最大高度为 320（防止超宽视频的缩略图过高）
           if (canvas.height > 320) {
             canvas.height = 320;
@@ -204,7 +213,7 @@
               cleanup();
 
               if (blob) {
-                resolve(blob);
+                resolve({ thumbnail: blob, duration: videoDuration });
               } else {
                 reject(new Error('Canvas 转 Blob 失败'));
               }
@@ -301,6 +310,9 @@
         
         // 单独发送文件名（确保中文文件名编码正确）
         formData.append(`filename_${index}`, file.name);
+
+        // 发送视频时长（秒）
+        formData.append(`duration_${index}`, Math.round(videoDurations[index] || 0));
 
         // 添加对应的缩略图（按索引匹配）
         if (videoThumbnails[index]) {

@@ -283,6 +283,20 @@ a:hover {
   font-size: 0.9rem;
 }
 
+.video-duration {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
 .video-info {
   padding: 0.6rem 0.75rem;
 }

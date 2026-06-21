@@ -255,6 +255,7 @@ app.post('/api/videos/upload', authMiddleware, upload.fields([
       const videoTags = Array.isArray(tags) ? tags[index] : (tags || '');
       const videoDesc = Array.isArray(description) ? description[index] : (description || '');
       const videoPassword = Array.isArray(password) ? password[index] : (password || '');
+      const videoDuration = req.body[`duration_${index}`]; // 视频时长（秒）
       
       // 处理缩略图
       let thumbnailPath = '/default-thumbnail.jpg';
@@ -282,6 +283,7 @@ app.post('/api/videos/upload', authMiddleware, upload.fields([
         password: videoPassword,
         hasPassword: !!videoPassword,
         fileSize: file.size,
+        duration: videoDuration ? parseInt(videoDuration) : 0,
         views: 0
       });
 
