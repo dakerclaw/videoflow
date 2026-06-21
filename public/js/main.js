@@ -63,10 +63,10 @@ function renderLoggedOutNav() {
 }
 
 function renderLoggedInNav() {
-  // 导航栏只显示用户信息和退出按钮
+  // 导航栏显示用户信息和退出按钮
   let html = `
     <span class="navbar-user">
-      <span class="username">${currentUser.username}</span>
+      <span class="username" style="cursor:pointer;" onclick="showChangePasswordModal()" title="点击修改密码">${currentUser.username}</span>
       ${currentUser.isAdmin ? '<a href="/admin.html" class="btn btn-outline btn-sm">管理后台</a>' : ''}
       <button class="btn btn-outline btn-sm" onclick="logout()">退出</button>
     </span>
@@ -91,6 +91,88 @@ function logout() {
   renderLoggedOutNav();
   showToast('已退出登录', 'info');
   setTimeout(() => location.reload(), 500);
+}
+
+// ========== 修改密码 ==========
+let changePasswordModal = null;
+
+function showChangePasswordModal() {
+  if (changePasswordModal) return; // 已打开
+
+  changePasswordModal = document.createElement('div');
+  changePasswordModal.className = 'modal-overlay';
+  changePasswordModal.innerHTML = `
+    <div class="modal">
+      <h2>修改密码</h2>
+      <div class="form-group">
+        <label class="form-label">旧密码</label>
+        <input type="password" class="form-input" id="oldPassword" placeholder="请输入旧密码">
+      </div>
+      <div class="form-group">
+        <label class="form-label">新密码</label>
+        <input type="password" class="form-input" id="newPassword" placeholder="请输入新密码（至少4个字符）">
+      </div>
+      <div class="form-group">
+        <label class="form-label">确认新密码</label>
+        <input type="password" class="form-input" id="confirmPassword" placeholder="再次输入新密码">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeChangePasswordModal()">取消</button>
+        <button class="btn btn-primary" onclick="submitChangePassword()">确认修改</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(changePasswordModal);
+}
+
+function closeChangePasswordModal() {
+  if (changePasswordModal) {
+    changePasswordModal.remove();
+    changePasswordModal = null;
+  }
+}
+
+async function submitChangePassword() {
+  const oldPwd = document.getElementById('oldPassword').value;
+  const newPwd = document.getElementById('newPassword').value;
+  const confirmPwd = document.getElementById('confirmPassword').value;
+
+  if (!oldPwd || !newPwd || !confirmPwd) {
+    showToast('请填写所有字段', 'error');
+    return;
+  }
+
+  if (newPwd !== confirmPwd) {
+    showToast('两次输入的新密码不一致', 'error');
+    return;
+  }
+
+  if (newPwd.length < 4) {
+    showToast('新密码至少4个字符', 'error');
+    return;
+  }
+
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch('/api/user/password', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ oldPassword: oldPwd, newPassword: newPwd })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      showToast('密码修改成功', 'success');
+      closeChangePasswordModal();
+    } else {
+      showToast(data.error || '修改失败', 'error');
+    }
+  } catch (e) {
+    showToast('网络错误，请重试', 'error');
+  }
 }
 
 function toggleSelectMode() {

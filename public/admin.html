@@ -230,13 +230,18 @@
           </td>
           <td>${formatDate(user.createdAt)}</td>
           <td>
-            <button class="btn btn-sm ${user.isDisabled ? 'btn-primary' : 'btn-outline'}" 
-                    onclick="toggleUserDisable('${user.id}', ${user.isDisabled})">
-              ${user.isDisabled ? '启用' : '禁用'}
-            </button>
-            <button class="btn btn-sm btn-danger" onclick="deleteUser('${user.id}', '${escapeHtml(user.username)}')">
-              删除
-            </button>
+            ${!user.isAdmin ? `
+              <button class="btn btn-sm ${user.isDisabled ? 'btn-primary' : 'btn-outline'}" 
+                      onclick="toggleUserDisable('${user.id}', ${user.isDisabled})">
+                ${user.isDisabled ? '启用' : '禁用'}
+              </button>
+              <button class="btn btn-sm btn-outline" onclick="resetUserPassword('${user.id}', '${escapeHtml(user.username)}')">
+                重置密码
+              </button>
+              <button class="btn btn-sm btn-danger" onclick="deleteUser('${user.id}', '${escapeHtml(user.username)}')">
+                删除
+              </button>
+            ` : '<span style="color: var(--text-muted);">-</span>'}
           </td>
         </tr>
       `).join('');
@@ -281,6 +286,37 @@
         }
       } catch (e) {
         showToast('删除失败', 'error');
+      }
+    }
+
+    async function resetUserPassword(userId, username) {
+      const newPassword = prompt(`请输入用户「${username}」的新密码（至少4个字符）：`);
+      if (!newPassword) return;
+
+      if (newPassword.length < 4) {
+        showToast('新密码至少4个字符', 'error');
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(`/api/admin/users/${userId}/reset-password`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ newPassword })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          showToast(`用户「${username}」密码已重置`, 'success');
+        } else {
+          showToast(data.error, 'error');
+        }
+      } catch (e) {
+        showToast('重置密码失败', 'error');
       }
     }
 

@@ -95,13 +95,98 @@
       const navLinks = document.getElementById('navLinks');
       if (currentUser) {
         navLinks.innerHTML = `
-          <a href="/upload.html" class="btn btn-primary btn-sm">上传视频</a>
-          <button class="btn btn-outline btn-sm" onclick="logout()">退出</button>
+          <span class="navbar-user">
+            <span class="username" style="cursor:pointer;" onclick="showChangePasswordModal()" title="点击修改密码">${currentUser.username}</span>
+            <a href="/upload.html" class="btn btn-primary btn-sm">上传视频</a>
+            <button class="btn btn-outline btn-sm" onclick="logout()">退出</button>
+          </span>
         `;
       } else {
         navLinks.innerHTML = `
           <a href="/login.html">登录</a>
         `;
+      }
+    }
+
+    // ========== 修改密码 ==========
+    let changePasswordModal = null;
+
+    function showChangePasswordModal() {
+      if (changePasswordModal) return;
+
+      changePasswordModal = document.createElement('div');
+      changePasswordModal.className = 'modal-overlay';
+      changePasswordModal.innerHTML = `
+        <div class="modal">
+          <h2>修改密码</h2>
+          <div class="form-group">
+            <label class="form-label">旧密码</label>
+            <input type="password" class="form-input" id="cpOldPassword" placeholder="请输入旧密码">
+          </div>
+          <div class="form-group">
+            <label class="form-label">新密码</label>
+            <input type="password" class="form-input" id="cpNewPassword" placeholder="请输入新密码（至少4个字符）">
+          </div>
+          <div class="form-group">
+            <label class="form-label">确认新密码</label>
+            <input type="password" class="form-input" id="cpConfirmPassword" placeholder="再次输入新密码">
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeChangePasswordModal()">取消</button>
+            <button class="btn btn-primary" onclick="submitChangePassword()">确认修改</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(changePasswordModal);
+    }
+
+    function closeChangePasswordModal() {
+      if (changePasswordModal) {
+        changePasswordModal.remove();
+        changePasswordModal = null;
+      }
+    }
+
+    async function submitChangePassword() {
+      const oldPwd = document.getElementById('cpOldPassword').value;
+      const newPwd = document.getElementById('cpNewPassword').value;
+      const confirmPwd = document.getElementById('cpConfirmPassword').value;
+
+      if (!oldPwd || !newPwd || !confirmPwd) {
+        showToast('请填写所有字段', 'error');
+        return;
+      }
+
+      if (newPwd !== confirmPwd) {
+        showToast('两次输入的新密码不一致', 'error');
+        return;
+      }
+
+      if (newPwd.length < 4) {
+        showToast('新密码至少4个字符', 'error');
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch('/api/user/password', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ oldPassword: oldPwd, newPassword: newPwd })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          showToast('密码修改成功', 'success');
+          closeChangePasswordModal();
+        } else {
+          showToast(data.error || '修改失败', 'error');
+        }
+      } catch (e) {
+        showToast('网络错误，请重试', 'error');
       }
     }
 
@@ -243,7 +328,7 @@
     }
 
     function isOwner() {
-      return currentUser && currentUser.id === currentVideo.userId;
+      return currentUser && (currentUser.id === currentVideo.userId || currentUser.isAdmin);
     }
 
     // ========== 分享功能 ==========

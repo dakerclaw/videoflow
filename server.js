@@ -200,6 +200,37 @@ app.get('/api/me', authMiddleware, (req, res) => {
   res.json({ ...user, password: undefined });
 });
 
+// 修改密码
+app.put('/api/user/password', authMiddleware, (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: '请填写旧密码和新密码' });
+    }
+
+    if (newPassword.length < 4) {
+      return res.status(400).json({ error: '新密码至少4个字符' });
+    }
+
+    const user = userDb.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: '用户不存在' });
+    }
+
+    // 验证旧密码
+    if (!userDb.verifyPassword(user, oldPassword)) {
+      return res.status(400).json({ error: '旧密码错误' });
+    }
+
+    // 更新密码
+    userDb.updateUser(req.user.id, { password: newPassword });
+    res.json({ message: '密码修改成功' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ==================== 视频路由 ====================
 
 // 上传视频（支持单个或多个）
@@ -493,6 +524,26 @@ app.put('/api/admin/users/:id/toggle-disable', authMiddleware, adminMiddleware, 
 
     const updated = userDb.updateUser(req.params.id, { isDisabled: !user.isDisabled });
     res.json({ message: `用户已${updated.isDisabled ? '禁用' : '启用'}`, user: updated });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 管理员重置用户密码
+app.put('/api/admin/users/:id/reset-password', authMiddleware, adminMiddleware, (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 4) {
+      return res.status(400).json({ error: '新密码至少4个字符' });
+    }
+
+    const user = userDb.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: '用户不存在' });
+    }
+
+    userDb.updateUser(req.params.id, { password: newPassword });
+    res.json({ message: '密码已重置' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

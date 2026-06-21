@@ -10,6 +10,9 @@ ENV PORT=3291
 ENV LANG=zh_CN.UTF-8
 ENV LC_ALL=zh_CN.UTF-8
 
+# 安装 ffmpeg（用于读取视频时长）
+RUN apk add --no-cache ffmpeg
+
 # 先复制 package.json（利用 Docker 缓存层）
 COPY package.json ./
 COPY package-lock.json* ./
